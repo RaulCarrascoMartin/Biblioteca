@@ -9,4 +9,6 @@ import java.util.Optional;
 
 public interface PrestamoRepository extends JpaRepository<Prestamo, Long> {
     List<Prestamo> findByFechaDevolucionIsNull();
+
+    List<Prestamo> findByUsuarioId(Long usuarioId);
 }
