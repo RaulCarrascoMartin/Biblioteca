@@ -3,6 +3,7 @@ package com.example.demo.domain.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+
 @Entity
 @Table(name = "usuarios")
 @Data
@@ -17,6 +18,7 @@ public class Usuario {
     @Column(unique = true)
     private String email;
 
+    private String password;
 
-
+    private String rol = "USER";
 }
