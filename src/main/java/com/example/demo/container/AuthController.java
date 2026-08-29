@@ -1,6 +1,7 @@
 package com.example.demo.container;
 
 
+import com.example.demo.domain.dto.UsuarioResponseDTO;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.domain.service.JwtService;
 import com.example.demo.persistance.repository.UsuarioRepository;
@@ -33,16 +34,17 @@ public class AuthController {
     private AuthenticationManager authenticationManager;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Usuario usuario){
-        if (usuarioRepository.findByEmail(usuario.getEmail()).isPresent()){
-            return ResponseEntity.badRequest().body("El email ya esta registrado");
+    public ResponseEntity<?> register(@RequestBody Usuario usuario) {
+        if (usuarioRepository.findByEmail(usuario.getEmail()).isPresent()) {
+            return ResponseEntity.badRequest().body("El email ya está registrado");
         }
 
         usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
         usuario.setRol(usuario.getRol() == null ? "USER" : usuario.getRol());
 
         Usuario guardado = usuarioRepository.save(usuario);
-        return ResponseEntity.ok(guardado);
+
+        return ResponseEntity.ok(new UsuarioResponseDTO(guardado));
     }
 
     @PostMapping("/login")
