@@ -1,10 +1,10 @@
 package com.example.demo.container;
 
-
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.service.LibroService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,11 +28,13 @@ public class LibroController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public Libro crear(@RequestBody Libro libro){
         return libroService.guardar(libro);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<Libro> actualizar(@PathVariable Long id, @RequestBody Libro libro){
         return libroService.obtenerPorId(id)
@@ -44,7 +46,7 @@ public class LibroController {
 
     }
 
-
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id){
         libroService.eliminar(id);
