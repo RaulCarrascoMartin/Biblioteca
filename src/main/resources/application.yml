@@ -5,7 +5,7 @@ spring:
     active: dev
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/biblioteca}
-    username: ${DB_USERNAME:root}
+    username: ${DB_USERNAME:biblioteca_app}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
