@@ -36,6 +36,12 @@ public class PrestamoService {
         return prestamoRepository.findById(id);
     }
 
+    public List<Prestamo> obtenerPorEmail(String emailUsuario){
+        return usuarioRepository.findByEmail(emailUsuario)
+                .map(usuario -> prestamoRepository.findByUsuarioId(usuario.getId()))
+                .orElseGet(List::of);
+    }
+
     @Transactional
     public PrestamoResponseDTO crearPrestamo(Long libroId, String emailUsuario){
         Libro libro = libroRepository.findById(libroId)

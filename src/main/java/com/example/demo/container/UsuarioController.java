@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +28,14 @@ public class UsuarioController {
                 .stream()
                 .map(UsuarioResponseDTO::new)
                 .toList();
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UsuarioResponseDTO> obtenerActual(@AuthenticationPrincipal UserDetails principal) {
+        return usuarioService.obtenerPorEmail(principal.getUsername())
+                .map(UsuarioResponseDTO::new)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PreAuthorize("hasRole('ADMIN') or @authz.esDueñoDeUsuario(#id)")

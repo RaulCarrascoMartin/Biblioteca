@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biblioteca Pública</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:wght@500;600;700&family=Special+Elite&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="lampara" aria-hidden="true"></div>
+
+  <header id="app-header" class="app-header hidden">
+    <div class="brand">
+      <span class="brand-monogram" aria-hidden="true">B</span>
+      <div class="brand-text">
+        <h1>Biblioteca Pública</h1>
+        <p class="brand-sub">Est. MCMXCIV &middot; Sala de Pr&eacute;stamos</p>
+      </div>
+    </div>
+    <div class="user-area hidden" id="user-area"></div>
+  </header>
+
+  <main class="page">
+    <section id="view-auth" class="view hidden">
+      <div class="sala">
+        <form id="auth-form" class="index-card" novalidate>
+          <div class="card-head">
+            <span class="card-title">BIBLIOTECA P&Uacute;BLICA</span>
+            <span class="card-no">FICHA NO. 0001</span>
+          </div>
+          <p class="card-rule">Ning&uacute;n libro saldr&aacute; de la sala sin sellar esta ficha.</p>
+          <div class="card-tabs" role="tablist">
+            <button type="button" class="card-tab active" data-tab="login" role="tab">Entrar</button>
+            <button type="button" class="card-tab" data-tab="register" role="tab">Alta de lector</button>
+          </div>
+          <div class="field hidden" id="row-nombre">
+            <label for="f-nombre">Nombre y apellidos</label>
+            <input id="f-nombre" name="nombre" autocomplete="name" placeholder="p. ej. Ana Garc&iacute;a" />
+          </div>
+          <div class="field">
+            <label for="f-email">Correo del lector</label>
+            <input id="f-email" name="email" type="email" autocomplete="email" placeholder="lector@biblioteca.es" />
+          </div>
+          <div class="field">
+            <label for="f-password">Contrase&ntilde;a</label>
+            <input id="f-password" name="password" type="password" autocomplete="current-password" placeholder="m&iacute;nimo 8 caracteres" />
+          </div>
+          <div class="stamp-slot">
+            <span class="stamp hidden" id="auth-msg"></span>
+          </div>
+          <button type="submit" class="btn-seal" id="auth-submit">Firmar</button>
+          <p class="card-foot"><span>&mldr;</span> Al firmar certifico conocer el reglamento de la sala <span>&mldr;</span></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="view-library" class="view hidden">
+      <div class="section shelf-section">
+        <div class="section-head">
+          <h2>Mis pr&eacute;stamos</h2>
+          <p class="section-sub">Los libros que tiene en su poder el lector, en estanter&iacute;a.</p>
+        </div>
+        <div id="my-shelf" class="shelf-stack">
+          <div class="shelf-loading">Abriendo anaqueles&hellip;</div>
+        </div>
+      </div>
+
+      <div class="section catalog-section">
+        <div class="section-head">
+          <h2>Estanter&iacute;a de disponibles</h2>
+          <p class="section-sub">Solicite un volumen y pasar&aacute; a su estanter&iacute;a personal.</p>
+        </div>
+        <div id="catalog" class="book-grid">
+          <div class="shelf-loading">Ordenando el cat&aacute;logo&hellip;</div>
+        </div>
+      </div>
+
+      <div class="section history-section">
+        <div class="section-head">
+          <h2>Historial de devoluciones</h2>
+        </div>
+        <ul id="history" class="history-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/covers.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

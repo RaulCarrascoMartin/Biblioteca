@@ -29,6 +29,14 @@ public class PrestamoController {
                 .toList();
     }
 
+    @GetMapping("/mios")
+    public List<PrestamoResponseDTO> obtenerMios(@AuthenticationPrincipal UserDetails principal){
+        return prestamoService.obtenerPorEmail(principal.getUsername())
+                .stream()
+                .map(PrestamoResponseDTO::new)
+                .toList();
+    }
+
     @PreAuthorize("hasRole('ADMIN') or @authz.esDueñoDePrestamo(#id)")
     @GetMapping("/{id}")
     public ResponseEntity<PrestamoResponseDTO> obtenerPorId(@PathVariable Long id){
