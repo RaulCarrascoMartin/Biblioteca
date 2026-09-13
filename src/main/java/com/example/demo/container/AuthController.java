@@ -6,6 +6,7 @@ import com.example.demo.domain.dto.UsuarioResponseDTO;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.domain.service.JwtService;
 import com.example.demo.persistance.repository.UsuarioRepository;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -35,7 +36,7 @@ public class AuthController {
     private AuthenticationManager authenticationManager;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UsuarioDTO dto) {
+    public ResponseEntity<?> register(@Valid @RequestBody UsuarioDTO dto) {
         if (usuarioRepository.findByEmail(dto.getEmail()).isPresent()) {
             return ResponseEntity.ok().build();
         }

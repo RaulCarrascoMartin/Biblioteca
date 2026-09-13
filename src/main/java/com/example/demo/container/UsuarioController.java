@@ -2,7 +2,9 @@ package com.example.demo.container;
 
 import com.example.demo.domain.dto.UsuarioDTO;
 import com.example.demo.domain.dto.UsuarioResponseDTO;
+import com.example.demo.domain.dto.UsuarioUpdateDTO;
 import com.example.demo.domain.service.UsuarioService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,7 +39,7 @@ public class UsuarioController {
 
     @PreAuthorize("hasRole('ADMIN') or @authz.esDueñoDeUsuario(#id)")
     @PutMapping("/{id}")
-    public ResponseEntity<UsuarioResponseDTO> actualizar(@PathVariable Long id, @RequestBody UsuarioDTO dto) {
+    public ResponseEntity<UsuarioResponseDTO> actualizar(@PathVariable Long id, @Valid @RequestBody UsuarioUpdateDTO dto) {
         return usuarioService.actualizar(id, dto)
                 .map(u -> ResponseEntity.ok(new UsuarioResponseDTO(u)))
                 .orElse(ResponseEntity.notFound().build());

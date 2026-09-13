@@ -1,6 +1,6 @@
 package com.example.demo.domain.service;
 
-import com.example.demo.domain.dto.UsuarioDTO;
+import com.example.demo.domain.dto.UsuarioUpdateDTO;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.persistance.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +31,7 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
-    public Optional<Usuario> actualizar(Long id, UsuarioDTO usuarioNuevo) {
+    public Optional<Usuario> actualizar(Long id, UsuarioUpdateDTO usuarioNuevo) {
         return usuarioRepository.findById(id).map(existente -> {
             existente.setNombre(usuarioNuevo.getNombre());
             existente.setEmail(usuarioNuevo.getEmail());
