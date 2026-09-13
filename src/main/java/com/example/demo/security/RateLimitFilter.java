@@ -71,4 +71,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         return request.getRemoteAddr();
     }
+
+    public void reset() {
+        windows.clear();
+    }
 }
