@@ -217,6 +217,22 @@ body {
   border-color: var(--bronce);
   box-shadow: 0 0 0 3px rgba(207,154,82,0.28);
 }
+.field select {
+  font-family: var(--serif);
+  font-size: 15px;
+  color: var(--tinta);
+  background: #fffdf8;
+  border: 1px solid rgba(107,79,56,0.4);
+  border-radius: 3px;
+  padding: 10px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field select:focus {
+  border-color: var(--bronce);
+  box-shadow: 0 0 0 3px rgba(207,154,82,0.28);
+}
 
 .stamp-slot { min-height: 34px; display: grid; place-items: center; margin-top: 12px; }
 .stamp {
@@ -437,6 +453,26 @@ body {
 }
 .book-plate b { display: block; color: var(--nuez); font-weight: 600; font-size: 13px; }
 .book-plate i { font-size: 11px; font-family: var(--maquina); }
+.book-gen {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px;
+  font-family: var(--maquina);
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+.book-gen i {
+  width: 9px; height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--gen);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.25);
+  display: inline-block;
+}
+.book-gen.vacio { text-transform: none; letter-spacing: 0; }
 
 .book-btn {
   margin-top: 8px;
@@ -484,7 +520,20 @@ body {
   align-items: stretch;
   text-align: center;
 }
-.book-caption { flex: 1 0 auto; width: 100%; }
+.book-caption {
+  flex: 1 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.book-gen-slot {
+  margin-top: auto;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.book-gen-slot .book-gen { margin: 0; }
 .grid-book .book-cover {
   width: 100%;
   height: 210px;
@@ -535,26 +584,129 @@ body {
 
 .shelf-loading { color: var(--tinta-suave); font-style: italic; padding: 10px 4px; }
 
-/* ---------- Historial ---------- */
-.history-list { list-style: none; padding: 0; margin: 0; }
-.history-list li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 6px;
-  border-bottom: 1px dashed rgba(107,79,56,0.2);
+/* ---------- Historial (ticket de devoluciones) ---------- */
+.ticket {
+  --papel: #fffdf7;
+  position: relative;
+  width: min(520px, 100%);
+  margin: 0 auto 18px;
+  background: var(--papel);
+  border: 1px solid rgba(107, 79, 56, 0.4);
+  box-shadow: 0 12px 26px rgba(78, 58, 40, 0.18);
+  padding: 22px 26px 16px;
+  border-radius: 2px;
+  transform: rotate(-0.4deg);
 }
-.history-list li::before {
-  content: "✓";
-  color: var(--verde-oscuro);
+.ticket::before, .ticket::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 16px;
+  background:
+    linear-gradient(-45deg, transparent 8px, var(--papel) 0) 0 0,
+    linear-gradient(45deg, transparent 8px, var(--papel) 0) 8px 0,
+    linear-gradient(-45deg, var(--papel) 8px, transparent 0) 0 16px,
+    linear-gradient(45deg, var(--papel) 8px, transparent 0) 8px 16px;
+  background-size: 16px 32px;
+  pointer-events: none;
+}
+.ticket::before { top: -16px; }
+.ticket::after { bottom: -16px; transform: scaleY(-1); }
+
+.ticket-head { text-align: center; }
+.ticket-empresa {
+  display: block;
   font-family: var(--serif-disp);
-  width: 22px;
-  text-align: center;
-  flex: none;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: var(--tinta);
 }
-.history-list b { font-weight: 600; }
-.history-list .fechas { margin-left: auto; font-family: var(--maquina); font-size: 12px; color: var(--tinta-suave); }
-.history-list .fechas span { margin-left: 10px; }
+.ticket-estab {
+  display: block;
+  font-family: var(--maquina);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+  margin-top: 4px;
+}
+.ticket-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px dashed rgba(107, 79, 56, 0.4);
+  font-family: var(--maquina);
+  font-size: 11.5px;
+  color: var(--tinta-suave);
+}
+.ticket-meta b { color: var(--tinta); font-weight: 400; }
+
+.ticket-lineas { list-style: none; margin: 0; padding: 4px 0; }
+.ticket-linea {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(107, 79, 56, 0.35);
+}
+.ticket-linea:last-child { border-bottom: none; }
+.tl-info { min-width: 0; }
+.tl-info b {
+  display: block;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--tinta);
+}
+.tl-info span { font-size: 12.5px; color: var(--tinta-suave); font-style: italic; }
+.tl-fechas {
+  flex: none;
+  text-align: right;
+  font-family: var(--maquina);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--tinta-suave);
+  white-space: nowrap;
+}
+.tl-fechas .tl-art { display: block; color: var(--bronce); letter-spacing: 1px; }
+.ticket-vacia {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: var(--maquina);
+  font-style: italic;
+  color: var(--tinta-suave);
+}
+
+.ticket-totales {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 2px dashed rgba(107, 79, 56, 0.4);
+  font-family: var(--maquina);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--tinta);
+}
+.ticket-totales b { font-size: 15px; }
+
+.ticket-pie {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(107, 79, 56, 0.3);
+  text-align: center;
+  font-family: var(--maquina);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--verde-oscuro);
+}
 
 /* ---------- Toast ---------- */
 .toast {
@@ -656,5 +808,6 @@ body {
   .shelf-rows { gap: 12px; }
   .book, .book-plate, .book-cover { width: 84px; }
   .book-cover { height: 178px; }
-  .history-list li { flex-wrap: wrap; }
+  .ticket { padding: 18px 16px 14px; }
+  .ticket-linea { flex-wrap: wrap; gap: 6px 14px; }
 }

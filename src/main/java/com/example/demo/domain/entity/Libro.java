@@ -21,5 +21,8 @@ public class Libro {
 
     private boolean disponible = true;
 
+    @Enumerated(EnumType.STRING)
+    private Genero genero;
+
 
 }

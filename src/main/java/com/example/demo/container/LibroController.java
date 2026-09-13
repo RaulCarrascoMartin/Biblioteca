@@ -43,6 +43,7 @@ public class LibroController {
         libro.setTitulo(dto.getTitulo());
         libro.setAutor(dto.getAutor());
         libro.setIsbn(dto.getIsbn());
+        libro.setGenero(dto.getGenero());
         libro.setDisponible(true);
 
         return ResponseEntity.ok(libroService.guardar(libro));
@@ -65,6 +66,9 @@ public class LibroController {
         libro.setTitulo(dto.getTitulo());
         libro.setAutor(dto.getAutor());
         libro.setIsbn(dto.getIsbn());
+        if (dto.getGenero() != null) {
+            libro.setGenero(dto.getGenero());
+        }
 
         return ResponseEntity.ok(libroService.guardar(libro));
     }

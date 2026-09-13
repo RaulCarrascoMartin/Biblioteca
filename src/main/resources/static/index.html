@@ -85,7 +85,22 @@
         <div class="section-head">
           <h2>Historial de devoluciones</h2>
         </div>
-        <ul id="history" class="history-list"></ul>
+        <div class="ticket">
+          <div class="ticket-head">
+            <span class="ticket-empresa">Biblioteca P&uacute;blica</span>
+            <span class="ticket-estab">Sala de Pr&eacute;stamos &middot; Est. MCMXCIV</span>
+            <div class="ticket-meta">
+              <span>TICKET N.&ordm; &nbsp;<b id="ticket-no">0001</b></span>
+              <span id="ticket-fecha">&mdash;</span>
+            </div>
+          </div>
+          <ul id="history" class="ticket-lineas"></ul>
+          <div class="ticket-totales">
+            <span>TOTAL DEVUELTOS</span>
+            <b id="ticket-total">0</b>
+          </div>
+          <div class="ticket-pie">Gracias por su visita</div>
+        </div>
       </div>
 
       <section id="admin-section" class="section admin-section hidden">
@@ -106,12 +121,26 @@
             <label for="b-isbn">ISBN</label>
             <input id="b-isbn" name="isbn" placeholder="978-84-000-0000-0" maxlength="20" />
           </div>
+          <div class="field">
+            <label for="b-genero">G&eacute;nero</label>
+            <select id="b-genero" name="genero">
+              <option value="">Sin g&eacute;nero</option>
+              <option value="CLASICA">Cl&aacute;sica</option>
+              <option value="AVENTURAS">Aventuras</option>
+              <option value="CIENCIA_FICCION">Ciencia ficci&oacute;n</option>
+              <option value="MISTERIO">Misterio</option>
+              <option value="ROMANTICA">Rom&aacute;ntica</option>
+              <option value="HISTORICA">Hist&oacute;rica</option>
+              <option value="FANTASIA">Fantas&iacute;a</option>
+              <option value="POESIA">Poes&iacute;a</option>
+            </select>
+          </div>
           <button type="submit" class="btn-seal" id="b-submit">A&ntilde;adir volumen</button>
         </form>
         <div class="admin-table-wrap">
           <table class="admin-table" id="admin-books">
             <thead>
-              <tr><th>T&iacute;tulo</th><th>Autor</th><th>ISBN</th><th>Estado</th><th></th></tr>
+              <tr><th>T&iacute;tulo</th><th>Autor</th><th>G&eacute;nero</th><th>ISBN</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody></tbody>
           </table>

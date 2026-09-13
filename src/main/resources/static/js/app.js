@@ -10,6 +10,12 @@
     return String(ctx).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  function genEtiqueta(libro) {
+    var g = covers.genero(libro && libro.genero);
+    if (!g) return "";
+    return '<span class="book-gen" style="--gen:' + g.tapa + '"><i></i>' + g.label + "</span>";
+  }
+
   /* ---------------- Toast ---------------- */
   var toastTimer = null;
   function toast(msg, esError) {
@@ -125,6 +131,7 @@
         '<div class="book-plate">' +
           "<b>" + esc(libro.titulo) + "</b>" +
           esc(libro.autor || "") + "<br>" +
+          genEtiqueta(libro) +
           "<i>" + fechaPlato + "</i>" +
         "</div>" + firma +
       "</div>"
@@ -150,6 +157,12 @@
     }).join("");
   }
 
+  function pad4(n) {
+    var s = String(n);
+    while (s.length < 4) s = "0" + s;
+    return s;
+  }
+
   function pintarEstanteria(loans) {
     var activos = loans.filter(function (p) { return p.fechaDevolucion === null; });
     var devueltos = loans.filter(function (p) { return p.fechaDevolucion !== null; });
@@ -161,19 +174,32 @@
 
     var hist = $("history");
     if (!devueltos.length) {
-      hist.innerHTML = '<li class="grid-empty" style="list-style:none">A\u00fan no hay libros devueltos.</li>';
+      hist.innerHTML = '<li class="ticket-linea ticket-vacia">Sin devoluciones &mdash; este comprobante queda en blanco.</li>';
     } else {
       hist.innerHTML = devueltos.map(function (p) {
         var l = p.libro;
+        var artNum = l.isbn ? l.isbn.slice(-4) : l.id;
         return (
-          "<li>" +
-            "<span><b>" + esc(l.titulo) + "</b> &mdash; " + esc(l.autor || "") + "</span>" +
-            '<span class="fechas"><span>P.&nbsp;' + covers.fecha(p.fechaPrestamo) + "</span>" +
-            "<span>D.&nbsp;" + covers.fecha(p.fechaDevolucion) + "</span></span>" +
+          '<li class="ticket-linea">' +
+            '<div class="tl-info">' +
+              "<b>" + esc(l.titulo) + "</b>" +
+              "<span>" + esc(l.autor || "") + "</span>" +
+            "</div>" +
+            '<div class="tl-fechas">' +
+              '<span class="tl-art">ART.&nbsp;' + esc(artNum) + "</span>" +
+              "<span>P.&nbsp;" + covers.fecha(p.fechaPrestamo) + "</span>" +
+              "<span>D.&nbsp;" + covers.fecha(p.fechaDevolucion) + "</span>" +
+            "</div>" +
           "</li>"
         );
       }).join("");
     }
+
+    $("ticket-total").textContent = devueltos.length;
+    $("ticket-no").textContent = pad4(devueltos.length + 1);
+    $("ticket-fecha").textContent = new Date().toLocaleDateString("es-ES", {
+      day: "2-digit", month: "short", year: "numeric"
+    });
   }
 
   function pintarCatalogo(libros) {
@@ -187,7 +213,8 @@
       return (
         '<div class="grid-book">' +
           covers.cubierta(l, "SALA") +
-          '<div class="book-caption"><b>' + esc(l.titulo) + "</b><span>" + esc(l.autor || "") + "</span></div>" +
+          '<div class="book-caption"><b>' + esc(l.titulo) + "</b><span>" + esc(l.autor || "") +
+          '</span><span class="book-gen-slot">' + genEtiqueta(l) + "</span></div>" +
           '<button type="button" class="cat-btn" data-solicitar="' + l.id + '">Solicitar</button>' +
         "</div>"
       );
@@ -204,7 +231,7 @@
     api.libros().then(function (libros) {
       var tbody = $("admin-books").querySelector("tbody");
       if (!libros.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="admin-empty">El cat\u00e1logo est\u00e1 vac\u00edo.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="admin-empty">El cat\u00e1logo est\u00e1 vac\u00edo.</td></tr>';
         return;
       }
       tbody.innerHTML = libros.map(function (l) {
@@ -215,9 +242,11 @@
         var btnDel = disponible
           ? '<button type="button" class="btn-del" data-retirar="' + l.id + '">Retirar</button>'
           : "";
+        var genero = genEtiqueta(l) || '<span class="book-gen vacio">&mdash;</span>';
         return (
           "<tr><td><b>" + esc(l.titulo) + "</b></td>" +
           "<td>" + esc(l.autor || "") + "</td>" +
+          "<td>" + genero + "</td>" +
           "<td><i>" + esc(l.isbn || "") + "</i></td>" +
           "<td>" + estado + "</td>" +
           "<td>" + btnDel + "</td></tr>"
@@ -324,10 +353,11 @@
       var titulo = $("b-titulo").value.trim();
       var autor = $("b-autor").value.trim();
       var isbn = $("b-isbn").value.trim();
+      var genero = $("b-genero").value || null;
       var btn = $("b-submit");
       if (!titulo || !autor || !isbn) { toast("Complete t\u00edtulo, autor e ISBN.", true); return; }
       btn.disabled = true;
-      api.crearLibro({ titulo: titulo, autor: autor, isbn: isbn })
+      api.crearLibro({ titulo: titulo, autor: autor, isbn: isbn, genero: genero })
         .then(function (nuevo) {
           toast("\u00ab" + nuevo.titulo + "\u00bb a\u00f1adido al cat\u00e1logo.");
           ev.target.reset();

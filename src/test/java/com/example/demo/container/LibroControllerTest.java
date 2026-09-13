@@ -1,6 +1,7 @@
 package com.example.demo.container;
 
 import com.example.demo.BaseIntegrationTest;
+import com.example.demo.domain.entity.Genero;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.persistance.repository.LibroRepository;
@@ -77,6 +78,23 @@ class LibroControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.isbn").value("978000000010"));
 
         assertTrue(libroRepository.findByIsbn("978000000010").isPresent());
+    }
+
+    @Test
+    void crear_conGenero_GuardaElGenero() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+                "titulo", "Crimen en la nieve", "autor", "Agatha Hélice", "isbn", "978000000013",
+                "genero", "MISTERIO"));
+
+        mockMvc.perform(post("/api/libros")
+                        .header("Authorization", "Bearer " + tokenDe(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.genero").value("MISTERIO"));
+
+        assertEquals(Genero.MISTERIO,
+                libroRepository.findByIsbn("978000000013").orElseThrow().getGenero());
     }
 
     @Test

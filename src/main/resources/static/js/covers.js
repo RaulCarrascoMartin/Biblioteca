@@ -18,7 +18,24 @@
     return Math.abs(h);
   }
 
+  var GENEROS = {
+    CLASICA:         { label: "Cl\u00e1sica",         tapa: 0 },
+    FANTASIA:        { label: "Fantas\u00eda",        tapa: 1 },
+    CIENCIA_FICCION: { label: "Ciencia ficci\u00f3n", tapa: 2 },
+    HISTORICA:       { label: "Hist\u00f3rica",       tapa: 3 },
+    ROMANTICA:       { label: "Rom\u00e1ntica",       tapa: 4 },
+    AVENTURAS:       { label: "Aventuras",            tapa: 5 },
+    MISTERIO:        { label: "Misterio",             tapa: 6 },
+    POESIA:          { label: "Poes\u00eda",          tapa: 7 }
+  };
+
+  function genero(g) {
+    return (g && GENEROS[g]) || null;
+  }
+
   function tapaPara(libro) {
+    var def = genero(libro && libro.genero);
+    if (def) return TAPAS[def.tapa];
     var semilla = (libro.isbn || "") + "|" + (libro.titulo || "");
     if (!semilla) semilla = String(libro.id || 0);
     return TAPAS[hash(semilla) % TAPAS.length];
@@ -57,5 +74,5 @@
     return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" });
   }
 
-  window.covers = { tapaPara: tapaPara, cubierta: cubierta, ficon: ficon, fecha: fecha };
+  window.covers = { tapaPara: tapaPara, cubierta: cubierta, ficon: ficon, fecha: fecha, genero: genero };
 })();
