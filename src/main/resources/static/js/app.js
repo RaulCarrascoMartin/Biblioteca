@@ -194,6 +194,59 @@
     }).join("");
   }
 
+  /* ---------------- Gestión (admin) ---------------- */
+  function pintarAdmin(usuario) {
+    var seccion = $("admin-section");
+    var esAdmin = usuario && usuario.rol === "ADMIN";
+    seccion.classList.toggle("hidden", !esAdmin);
+    if (!esAdmin) return;
+
+    api.libros().then(function (libros) {
+      var tbody = $("admin-books").querySelector("tbody");
+      if (!libros.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="admin-empty">El cat\u00e1logo est\u00e1 vac\u00edo.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = libros.map(function (l) {
+        var disponible = l.disponible;
+        var estado = disponible
+          ? '<span class="estado estado-ok">EN SALA</span>'
+          : '<span class="estado estado-prestado">PRESTADO</span>';
+        var btnDel = disponible
+          ? '<button type="button" class="btn-del" data-retirar="' + l.id + '">Retirar</button>'
+          : "";
+        return (
+          "<tr><td><b>" + esc(l.titulo) + "</b></td>" +
+          "<td>" + esc(l.autor || "") + "</td>" +
+          "<td><i>" + esc(l.isbn || "") + "</i></td>" +
+          "<td>" + estado + "</td>" +
+          "<td>" + btnDel + "</td></tr>"
+        );
+      }).join("");
+      enlazarRetirar();
+    }).catch(function (err) {
+      toast(err.message, true);
+    });
+  }
+
+  function enlazarRetirar() {
+    document.querySelectorAll("[data-retirar]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-retirar");
+        btn.disabled = true;
+        api.eliminarLibro(id)
+          .then(function () {
+            toast("Volumen retirado del cat\u00e1logo.");
+            cargarBiblioteca();
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            toast(err.message, true);
+          });
+      });
+    });
+  }
+
   /* ---------------- Datos / carga ---------------- */
   function cargarBiblioteca() {
     if (!api.tieneSesion()) { mostrarAuth(null); return; }
@@ -204,6 +257,7 @@
         pintarCabecera(resultados[0]);
         pintarEstanteria(resultados[1]);
         pintarCatalogo(resultados[2]);
+        pintarAdmin(resultados[0]);
         vincularAcciones();
       })
       .catch(function (err) {
@@ -263,6 +317,26 @@
       if (esRegistro && !$("f-nombre").value.trim()) { mostrarSello("Indique su nombre para el alta.", true); return; }
       if (password.length < 8) { mostrarSello("La contrase\u00f1a requiere 8 caracteres como m\u00ednimo.", true); return; }
       autenticar(email, password);
+    });
+
+    $("book-add-form").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var titulo = $("b-titulo").value.trim();
+      var autor = $("b-autor").value.trim();
+      var isbn = $("b-isbn").value.trim();
+      var btn = $("b-submit");
+      if (!titulo || !autor || !isbn) { toast("Complete t\u00edtulo, autor e ISBN.", true); return; }
+      btn.disabled = true;
+      api.crearLibro({ titulo: titulo, autor: autor, isbn: isbn })
+        .then(function (nuevo) {
+          toast("\u00ab" + nuevo.titulo + "\u00bb a\u00f1adido al cat\u00e1logo.");
+          ev.target.reset();
+          cargarBiblioteca();
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          toast(err.message, true);
+        });
     });
 
     window.addEventListener("sesion:caducada", function () {

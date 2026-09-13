@@ -78,5 +78,13 @@
     return pedir("/api/prestamos/" + encodeURIComponent(prestamoId) + "/devolver", "PUT");
   };
 
+  api.crearLibro = function (dto) {
+    return pedir("/api/libros", "POST", dto);
+  };
+
+  api.eliminarLibro = function (libroId) {
+    return pedir("/api/libros/" + encodeURIComponent(libroId), "DELETE");
+  };
+
   window.api = api;
 })();

@@ -87,6 +87,36 @@
         </div>
         <ul id="history" class="history-list"></ul>
       </div>
+
+      <section id="admin-section" class="section admin-section hidden">
+        <div class="section-head">
+          <h2>Gesti&oacute;n de vol&uacute;menes</h2>
+          <p class="section-sub">Solo la bibliotecaria puede dar de alta o retirar ejemplares.</p>
+        </div>
+        <form id="book-add-form" class="admin-form" novalidate>
+          <div class="field">
+            <label for="b-titulo">T&iacute;tulo</label>
+            <input id="b-titulo" name="titulo" placeholder="p. ej. La vuelta al mundo en ochenta d&iacute;as" />
+          </div>
+          <div class="field">
+            <label for="b-autor">Autor</label>
+            <input id="b-autor" name="autor" placeholder="p. ej. Julio Verne" />
+          </div>
+          <div class="field">
+            <label for="b-isbn">ISBN</label>
+            <input id="b-isbn" name="isbn" placeholder="978-84-000-0000-0" maxlength="20" />
+          </div>
+          <button type="submit" class="btn-seal" id="b-submit">A&ntilde;adir volumen</button>
+        </form>
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="admin-books">
+            <thead>
+              <tr><th>T&iacute;tulo</th><th>Autor</th><th>ISBN</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
     </section>
   </main>
 

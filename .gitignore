@@ -57,5 +57,8 @@ build/
 hs_err_pid*
 replay_pid*
 
+# macOS
+.DS_Store
+
 # Overrides locales (secretos, conexión BD de desarrollo)
 application-local.yml

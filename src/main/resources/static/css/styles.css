@@ -574,6 +574,73 @@ body {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ---------- Gestión de volúmenes (admin) ---------- */
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  align-items: end;
+  background: rgba(250,245,236,0.6);
+  border: 1px solid rgba(74,47,29,0.22);
+  border-top: 4px solid var(--bronce);
+  border-radius: 4px;
+  padding: 20px 22px;
+  margin-bottom: 26px;
+}
+.admin-form .btn-seal { margin-top: 2px; min-width: 180px; }
+
+.admin-table-wrap {
+  border: 1px solid rgba(74,47,29,0.35);
+  border-radius: 4px;
+  overflow-x: auto;
+  background: var(--crema-alta);
+  box-shadow: 0 8px 20px rgba(54,34,21,0.12);
+}
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.admin-table th {
+  font-family: var(--maquina);
+  font-size: 11.5px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--crema-alta);
+  background: var(--nuez);
+  text-align: left;
+  padding: 10px 14px;
+}
+.admin-table td {
+  padding: 11px 14px;
+  border-bottom: 1px dashed rgba(74,47,29,0.18);
+  vertical-align: middle;
+}
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:nth-child(even) { background: rgba(201,169,97,0.08); }
+.admin-table b { font-weight: 600; }
+.admin-table .estado {
+  font-family: var(--maquina);
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.estado-ok { color: var(--verde-oscuro); background: rgba(59,90,62,0.12); }
+.estado-prestado { color: #8a2f24; background: rgba(138,47,36,0.1); }
+
+.btn-del {
+  font-family: var(--serif);
+  font-size: 12.5px;
+  color: #8a2f24;
+  background: transparent;
+  border: 1px solid rgba(138,47,36,0.45);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.btn-del:hover { background: rgba(138,47,36,0.12); }
+.btn-del:disabled { opacity: 0.5; cursor: wait; }
+
+.admin-empty { padding: 16px; text-align: center; color: var(--tinta-suave); font-style: italic; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 720px) {
   .brand-text h1 { font-size: 19px; }

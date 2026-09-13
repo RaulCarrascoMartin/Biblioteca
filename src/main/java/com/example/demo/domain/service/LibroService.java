@@ -22,6 +22,10 @@ public class LibroService {
         return libroRepository.findById(id);
     }
 
+    public Optional<Libro>obtenerPorIsbn(String isbn){
+        return libroRepository.findByIsbn(isbn);
+    }
+
     public Libro guardar(Libro libro){
         return libroRepository.save(libro);
     }
