@@ -56,4 +56,6 @@ build/
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
-84f6f54dd3c9aae8b053ab4f34efb13662067630
+
+# Overrides locales (secretos, conexión BD de desarrollo)
+application-local.yml

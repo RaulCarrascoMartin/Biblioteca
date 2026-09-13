@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: biblioteca
+  profiles:
+    active: dev
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/biblioteca}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+
+server:
+  error:
+    include-stacktrace: never
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION_MS:1800000}
+  issuer: biblioteca-api
+  audience: biblioteca-web

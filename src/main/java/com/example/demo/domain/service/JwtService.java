@@ -3,6 +3,7 @@ package com.example.demo.domain.service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -12,18 +13,38 @@ import java.util.function.Function;
 
 @Service
 public class JwtService {
-    private static final String SECRET_KEY = ("REDACTED_JWT_SECRET");
 
-    private SecretKey getSingingKey(){
-        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
+    private static final int MIN_SECRET_BYTES = 32;
+
+    private final SecretKey signingKey;
+    private final long expirationMs;
+    private final String issuer;
+    private final String audience;
+
+    public JwtService(
+            @Value("${jwt.secret}") String secret,
+            @Value("${jwt.expiration}") long expirationMs,
+            @Value("${jwt.issuer}") String issuer,
+            @Value("${jwt.audience}") String audience) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "jwt.secret debe definirse y tener al menos " + MIN_SECRET_BYTES + " bytes (use una clave aleatoria).");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expirationMs = expirationMs;
+        this.issuer = issuer;
+        this.audience = audience;
     }
 
-    public String generarToken(String email){
+    public String generarToken(String email) {
+        Date now = new Date(System.currentTimeMillis());
         return Jwts.builder()
                 .subject(email)
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10))
-                .signWith(getSingingKey())
+                .issuer(issuer)
+                .audience().add(audience).and()
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + expirationMs))
+                .signWith(signingKey)
                 .compact();
     }
 
@@ -31,23 +52,26 @@ public class JwtService {
         return extraerClaim(token, Claims::getSubject);
     }
 
-    public boolean esTokenValido(String token, String email){
-        String emailToken = extraerEmail(token);
-        return emailToken.equalsIgnoreCase(email) && !haExpirado(token);
-    }
-
-    private boolean haExpirado (String token){
-        return extraerClaim(token, Claims::getExpiration).before(new Date());
-    }
-
-    private <T> T extraerClaim(String token, Function<Claims, T> resolver){
+    public boolean esTokenValido(String token, String email) {
         Claims claims = extraerTodosLosClaims(token);
-        return resolver.apply(claims);
+        String emailToken = claims.getSubject();
+        return emailToken.equalsIgnoreCase(email)
+                && !haExpirado(claims);
     }
 
-    private Claims extraerTodosLosClaims (String token){
+    private boolean haExpirado(Claims claims) {
+        return claims.getExpiration().before(new Date());
+    }
+
+    private <T> T extraerClaim(String token, Function<Claims, T> resolver) {
+        return resolver.apply(extraerTodosLosClaims(token));
+    }
+
+    private Claims extraerTodosLosClaims(String token) {
         return Jwts.parser()
-                .verifyWith(getSingingKey())
+                .verifyWith(signingKey)
+                .requireIssuer(issuer)
+                .requireAudience(audience)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

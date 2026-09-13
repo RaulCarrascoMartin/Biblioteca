@@ -1,0 +1,9 @@
+# Perfil de desarrollo: la clave jwt aquí es solo para desarrollo local,
+# nunca debe usarse en producción (ahí llega por la variable de entorno JWT_SECRET).
+spring:
+  jpa:
+    show-sql: true
+
+jwt:
+  secret: wHvPRQwiadiHrfgxlZQg2XvQI9IT4X9pkIeudbYx381aaiKsb0sEqmoqe2b+Ka9n6dcfPvAdmXIM4lM4wyG9YQ==
+  expiration: 1800000
