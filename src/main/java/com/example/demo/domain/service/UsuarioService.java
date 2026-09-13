@@ -1,5 +1,6 @@
 package com.example.demo.domain.service;
 
+import com.example.demo.domain.dto.UsuarioDTO;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.persistance.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,18 +31,17 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
-    public Usuario actualizar(Long id, Usuario usuarioNuevo){
-        Usuario existente = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    public Optional<Usuario> actualizar(Long id, UsuarioDTO usuarioNuevo) {
+        return usuarioRepository.findById(id).map(existente -> {
+            existente.setNombre(usuarioNuevo.getNombre());
+            existente.setEmail(usuarioNuevo.getEmail());
 
-        existente.setNombre(usuarioNuevo.getNombre());
-        existente.setEmail(usuarioNuevo.getEmail());
+            if (usuarioNuevo.getPassword() != null && !usuarioNuevo.getPassword().isBlank()) {
+                existente.setPassword(passwordEncoder.encode(usuarioNuevo.getPassword()));
+            }
 
-        if (usuarioNuevo.getPassword() != null && !usuarioNuevo.getPassword().isBlank()) {
-            existente.setPassword(passwordEncoder.encode(usuarioNuevo.getPassword()));
-        }
-
-        return usuarioRepository.save(existente);
+            return usuarioRepository.save(existente);
+        });
     }
 
     public void eliminar(Long id){

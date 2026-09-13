@@ -22,3 +22,7 @@ jwt:
   expiration: ${JWT_EXPIRATION_MS:1800000}
   issuer: biblioteca-api
   audience: biblioteca-web
+
+admin:
+  email: ${ADMIN_EMAIL:}
+  password: ${ADMIN_PASSWORD:}

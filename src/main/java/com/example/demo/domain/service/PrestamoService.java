@@ -1,6 +1,7 @@
 package com.example.demo.domain.service;
 
 
+import com.example.demo.domain.dto.PrestamoResponseDTO;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Prestamo;
 import com.example.demo.domain.entity.Usuario;
@@ -36,11 +37,11 @@ public class PrestamoService {
     }
 
     @Transactional
-    public Prestamo crearPrestamo(Long libroId, Long usuarioId){
+    public PrestamoResponseDTO crearPrestamo(Long libroId, String emailUsuario){
         Libro libro = libroRepository.findById(libroId)
                 .orElseThrow(() -> new RuntimeException("Libro no encontrado"));
 
-        Usuario usuario = usuarioRepository.findById(usuarioId)
+        Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new RuntimeException("El usuario no existe"));
 
         if (!libro.isDisponible()){
@@ -55,11 +56,11 @@ public class PrestamoService {
         prestamo.setUsuario(usuario);
         prestamo.setFechaPrestamo(LocalDate.now());
 
-        return prestamoRepository.save(prestamo);
+        return new PrestamoResponseDTO(prestamoRepository.save(prestamo));
     }
 
     @Transactional
-    public Prestamo devolverLibro(Long prestamoId){
+    public PrestamoResponseDTO devolverLibro(Long prestamoId){
         Prestamo prestamo = prestamoRepository.findById(prestamoId)
                 .orElseThrow(() -> new RuntimeException("Prestamo no encontrado"));
 
@@ -69,7 +70,7 @@ public class PrestamoService {
         libro.setDisponible(true);
         libroRepository.save(libro);
 
-        return prestamoRepository.save(prestamo);
+        return new PrestamoResponseDTO(prestamoRepository.save(prestamo));
     }
 
 }

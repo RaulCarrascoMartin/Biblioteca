@@ -1,7 +1,7 @@
 package com.example.demo.container;
 
+import com.example.demo.domain.dto.UsuarioDTO;
 import com.example.demo.domain.dto.UsuarioResponseDTO;
-import com.example.demo.domain.entity.Usuario;
 import com.example.demo.domain.service.UsuarioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +17,7 @@ public class UsuarioController {
     @Autowired
     private UsuarioService usuarioService;
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public List<UsuarioResponseDTO> obtenerTodos() {
         return usuarioService.obtenerTodos()
@@ -25,6 +26,7 @@ public class UsuarioController {
                 .toList();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authz.esDueñoDeUsuario(#id)")
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioResponseDTO> obtenerPorId(@PathVariable Long id) {
         return usuarioService.obtenerPorId(id)
@@ -33,14 +35,12 @@ public class UsuarioController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authz.esDueñoDeUsuario(#id)")
     @PutMapping("/{id}")
-    public ResponseEntity<UsuarioResponseDTO> actualizar(@PathVariable Long id, @RequestBody Usuario usuario) {
-        try {
-            Usuario actualizado = usuarioService.actualizar(id, usuario);
-            return ResponseEntity.ok(new UsuarioResponseDTO(actualizado));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<UsuarioResponseDTO> actualizar(@PathVariable Long id, @RequestBody UsuarioDTO dto) {
+        return usuarioService.actualizar(id, dto)
+                .map(u -> ResponseEntity.ok(new UsuarioResponseDTO(u)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PreAuthorize("hasRole('ADMIN')")
