@@ -5,11 +5,11 @@
     ["#6f3a34", "#5a2d29"], /* burdeos */
     ["#48604a", "#3a4f3d"], /* verde musgo */
     ["#3c5871", "#334a60"], /* azul apagado */
-    ["#9a6f34", "#825c2a"], /* ocre */
-    ["#5c4a68", "#4c3d57"], /* violeta */
-    ["#9c5a44", "#834a37"], /* terracota */
+    ["#c9973f", "#a97a29"], /* ocre */
+    ["#eab08f", "#d68a62"], /* melocotón pastel */
+    ["#d07a47", "#b25a2c"], /* terracota */
     ["#596069", "#4b5159"], /* pizarra */
-    ["#a8873d", "#8f7231"]  /* mostaza */
+    ["#d3a648", "#b98a33"]  /* mostaza */
   ];
 
   function hash(s) {
