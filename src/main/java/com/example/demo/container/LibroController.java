@@ -1,6 +1,7 @@
 package com.example.demo.container;
 
 import com.example.demo.domain.dto.LibroDTO;
+import com.example.demo.domain.dto.LibroResponseDTO;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.service.LibroService;
 import jakarta.validation.Valid;
@@ -21,13 +22,17 @@ public class LibroController {
     private LibroService libroService;
 
     @GetMapping
-    public List<Libro> obtenerTodos(){
-        return libroService.obtenerTodos();
+    public List<LibroResponseDTO> obtenerTodos(){
+        return libroService.obtenerTodos()
+                .stream()
+                .map(LibroResponseDTO::new)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Libro> obtenerPorId(@PathVariable Long id){
+    public ResponseEntity<LibroResponseDTO> obtenerPorId(@PathVariable Long id){
         return libroService.obtenerPorId(id)
+                .map(LibroResponseDTO::new)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -46,7 +51,7 @@ public class LibroController {
         libro.setGenero(dto.getGenero());
         libro.setDisponible(true);
 
-        return ResponseEntity.ok(libroService.guardar(libro));
+        return ResponseEntity.ok(new LibroResponseDTO(libroService.guardar(libro)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -70,7 +75,7 @@ public class LibroController {
             libro.setGenero(dto.getGenero());
         }
 
-        return ResponseEntity.ok(libroService.guardar(libro));
+        return ResponseEntity.ok(new LibroResponseDTO(libroService.guardar(libro)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")

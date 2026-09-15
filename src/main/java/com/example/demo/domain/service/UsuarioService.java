@@ -37,6 +37,11 @@ public class UsuarioService {
 
     public Optional<Usuario> actualizar(Long id, UsuarioUpdateDTO usuarioNuevo) {
         return usuarioRepository.findById(id).map(existente -> {
+            if (!existente.getEmail().equalsIgnoreCase(usuarioNuevo.getEmail())) {
+                if (usuarioRepository.findByEmail(usuarioNuevo.getEmail()).isPresent()) {
+                    throw new IllegalArgumentException("El email ya está registrado");
+                }
+            }
             existente.setNombre(usuarioNuevo.getNombre());
             existente.setEmail(usuarioNuevo.getEmail());
 

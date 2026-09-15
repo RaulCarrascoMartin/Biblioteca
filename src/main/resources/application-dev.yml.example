@@ -1,0 +1,9 @@
+# Perfil de desarrollo: copia este archivo como application-dev.yml
+# y configura la variable de entorno JWT_SECRET con un valor aleatorio.
+# Nunca versiones application-dev.yml con secretos reales.
+spring:
+  jpa:
+    show-sql: true
+
+app:
+  seed-books: true

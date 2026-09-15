@@ -44,7 +44,7 @@ public class PrestamoService {
 
     @Transactional
     public PrestamoResponseDTO crearPrestamo(Long libroId, String emailUsuario){
-        Libro libro = libroRepository.findById(libroId)
+        Libro libro = libroRepository.findByIdWithLock(libroId)
                 .orElseThrow(() -> new RuntimeException("Libro no encontrado"));
 
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)

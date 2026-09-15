@@ -1,6 +1,5 @@
 package com.example.demo.domain.dto;
 
-import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Prestamo;
 import lombok.Data;
 
@@ -11,7 +10,7 @@ public class PrestamoResponseDTO {
     private Long id;
     private LocalDate fechaPrestamo;
     private LocalDate fechaDevolucion;
-    private Libro libro;
+    private LibroResponseDTO libro;
     private Long usuarioId;
     private String usuarioNombre;
     private String usuarioEmail;
@@ -20,7 +19,7 @@ public class PrestamoResponseDTO {
         this.id = prestamo.getId();
         this.fechaPrestamo = prestamo.getFechaPrestamo();
         this.fechaDevolucion = prestamo.getFechaDevolucion();
-        this.libro = prestamo.getLibro();
+        this.libro = new LibroResponseDTO(prestamo.getLibro());
         this.usuarioId = prestamo.getUsuario().getId();
         this.usuarioNombre = prestamo.getUsuario().getNombre();
         this.usuarioEmail = prestamo.getUsuario().getEmail();

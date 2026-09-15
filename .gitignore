@@ -62,4 +62,5 @@ replay_pid*
 
 # Overrides locales (secretos, conexión BD de desarrollo)
 application-local.yml
+application-dev.yml
 .env

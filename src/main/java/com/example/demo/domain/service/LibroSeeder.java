@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Component
-@ConditionalOnProperty(prefix = "app", name = "seed-books", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app", name = "seed-books", havingValue = "true")
 public class LibroSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(LibroSeeder.class);

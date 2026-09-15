@@ -1,33 +1,25 @@
 (function () {
   "use strict";
 
-  var TOKEN_KEY = "biblioteca_token";
+  var SESSION_KEY = "biblioteca_sesion";
 
   var api = {
     setToken: function (token) {
-      if (token) localStorage.setItem(TOKEN_KEY, token);
-      else localStorage.removeItem(TOKEN_KEY);
+      if (token) localStorage.setItem(SESSION_KEY, "1");
+      else localStorage.removeItem(SESSION_KEY);
     },
     getToken: function () {
-      return localStorage.getItem(TOKEN_KEY);
+      return null;
     },
     tieneSesion: function () {
-      return !!api.getToken();
+      return !!localStorage.getItem(SESSION_KEY);
     }
   };
 
-  function jsonBody(payload) {
-    return {
-      "Content-Type": "application/json"
-    };
-  }
-
   function pedir(path, method, payload) {
     var headers = { "Content-Type": "application/json" };
-    var token = api.getToken();
-    if (token) headers["Authorization"] = "Bearer " + token;
 
-    var opts = { method: method || "GET", headers: headers };
+    var opts = { method: method || "GET", headers: headers, credentials: "same-origin" };
     if (payload !== undefined) opts.body = JSON.stringify(payload);
 
     return fetch(path, opts).then(function (res) {
@@ -76,6 +68,10 @@
 
   api.devolver = function (prestamoId) {
     return pedir("/api/prestamos/" + encodeURIComponent(prestamoId) + "/devolver", "PUT");
+  };
+
+  api.logout = function () {
+    return pedir("/api/auth/logout", "POST");
   };
 
   api.crearLibro = function (dto) {

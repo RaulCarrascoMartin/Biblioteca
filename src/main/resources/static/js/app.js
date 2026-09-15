@@ -74,7 +74,7 @@
 
   function pintarCabecera(usuario) {
     var area = $("user-area");
-    area.innerHTML =
+      area.innerHTML =
       '<span class="user-avatar">' + esc(covers.ficon(usuario.nombre || usuario.email)) + "</span>" +
       '<span class="user-meta">' +
         '<span class="user-name">' + esc(usuario.nombre || usuario.email) + "</span><br>" +
@@ -83,8 +83,10 @@
       '<button type="button" class="btn-ghost" id="btn-logout">Cerrar sesi\u00f3n</button>';
     area.classList.remove("hidden");
     $("btn-logout").addEventListener("click", function () {
-      api.setToken(null);
-      location.reload();
+      api.logout().catch(function () {}).finally(function () {
+        api.setToken(null);
+        location.reload();
+      });
     });
   }
 

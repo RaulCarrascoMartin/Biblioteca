@@ -37,6 +37,7 @@ class PrestamoServiceTest extends BaseIntegrationTest {
         assertEquals(LocalDate.now(), dto.getFechaPrestamo());
         assertEquals(null, dto.getFechaDevolucion());
         assertEquals(libro.getId(), dto.getLibro().getId());
+        assertEquals(libro.getTitulo(), dto.getLibro().getTitulo());
         assertEquals(ana.getNombre(), dto.getUsuarioNombre());
         assertFalse(libroRepository.findById(libro.getId()).orElseThrow().isDisponible());
     }

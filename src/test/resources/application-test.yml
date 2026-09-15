@@ -16,7 +16,7 @@ server:
     include-stacktrace: never
 
 jwt:
-  secret: wHvPRQwiadiHrfgxlZQg2XvQI9IT4X9pkIeudbYx381aaiKsb0sEqmoqe2b+Ka9n6dcfPvAdmXIM4lM4wyG9YQ==
+  secret: dGVzdC1zZWNyZXQtb25seS1mb3ItdW5pdC10ZXN0cy0zMjtieXRlcw==
   expiration: 1800000
   issuer: biblioteca-api
   audience: biblioteca-web

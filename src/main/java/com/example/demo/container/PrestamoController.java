@@ -3,6 +3,7 @@ package com.example.demo.container;
 
 import com.example.demo.domain.dto.PrestamoResponseDTO;
 import com.example.demo.domain.service.PrestamoService;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,7 +48,7 @@ public class PrestamoController {
     }
 
     @PostMapping
-    public ResponseEntity<?> crear(@RequestParam Long libroId, @AuthenticationPrincipal UserDetails principal){
+    public ResponseEntity<?> crear(@RequestParam @Positive Long libroId, @AuthenticationPrincipal UserDetails principal){
         try {
             PrestamoResponseDTO prestamo = prestamoService.crearPrestamo(libroId, principal.getUsername());
             return ResponseEntity.ok(prestamo);
