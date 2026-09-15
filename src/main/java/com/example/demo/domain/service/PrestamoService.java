@@ -5,6 +5,7 @@ import com.example.demo.domain.dto.PrestamoResponseDTO;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Prestamo;
 import com.example.demo.domain.entity.Usuario;
+import com.example.demo.domain.exception.NotFoundException;
 import com.example.demo.persistance.repository.LibroRepository;
 import com.example.demo.persistance.repository.PrestamoRepository;
 import com.example.demo.persistance.repository.UsuarioRepository;
@@ -45,17 +46,16 @@ public class PrestamoService {
     @Transactional
     public PrestamoResponseDTO crearPrestamo(Long libroId, String emailUsuario){
         Libro libro = libroRepository.findByIdWithLock(libroId)
-                .orElseThrow(() -> new RuntimeException("Libro no encontrado"));
+                .orElseThrow(() -> new NotFoundException("Libro no encontrado"));
 
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
-                .orElseThrow(() -> new RuntimeException("El usuario no existe"));
+                .orElseThrow(() -> new NotFoundException("El usuario no existe"));
 
         if (!libro.isDisponible()){
             throw new IllegalStateException("El libro no se encuentra disponible en estos momentos");
         }
 
         libro.setDisponible(false);
-        libroRepository.save(libro);
 
         Prestamo prestamo = new Prestamo();
         prestamo.setLibro(libro);
@@ -68,13 +68,11 @@ public class PrestamoService {
     @Transactional
     public PrestamoResponseDTO devolverLibro(Long prestamoId){
         Prestamo prestamo = prestamoRepository.findById(prestamoId)
-                .orElseThrow(() -> new RuntimeException("Prestamo no encontrado"));
+                .orElseThrow(() -> new NotFoundException("Prestamo no encontrado"));
 
         prestamo.setFechaDevolucion(LocalDate.now());
 
-        Libro libro = prestamo.getLibro();
-        libro.setDisponible(true);
-        libroRepository.save(libro);
+        prestamo.getLibro().setDisponible(true);
 
         return new PrestamoResponseDTO(prestamoRepository.save(prestamo));
     }

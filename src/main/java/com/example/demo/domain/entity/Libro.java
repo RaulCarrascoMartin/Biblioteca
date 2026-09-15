@@ -1,12 +1,17 @@
 package com.example.demo.domain.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.Objects;
 
 @Entity
 @Table(name = "libros")
-@Data
-
+@Getter
+@Setter
+@NoArgsConstructor
 public class Libro {
 
     @Id
@@ -24,5 +29,21 @@ public class Libro {
     @Enumerated(EnumType.STRING)
     private Genero genero;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Libro libro = (Libro) o;
+        return Objects.equals(id, libro.id);
+    }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "Libro{id=" + id + ", titulo='" + titulo + "', disponible=" + disponible + "}";
+    }
 }

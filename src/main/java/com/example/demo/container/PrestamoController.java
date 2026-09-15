@@ -2,6 +2,7 @@ package com.example.demo.container;
 
 
 import com.example.demo.domain.dto.PrestamoResponseDTO;
+import com.example.demo.domain.exception.NotFoundException;
 import com.example.demo.domain.service.PrestamoService;
 import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,10 +11,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Validated
 @RestController
 @RequestMapping("/api/prestamos")
 public class PrestamoController {
@@ -52,12 +55,10 @@ public class PrestamoController {
         try {
             PrestamoResponseDTO prestamo = prestamoService.crearPrestamo(libroId, principal.getUsername());
             return ResponseEntity.ok(prestamo);
-        } catch (IllegalArgumentException e){
-            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (NotFoundException e){
+            return ResponseEntity.notFound().build();
         } catch (IllegalStateException e){
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-        } catch (RuntimeException e){
-            return ResponseEntity.notFound().build();
         }
     }
 
@@ -67,7 +68,7 @@ public class PrestamoController {
         try {
             PrestamoResponseDTO prestamo = prestamoService.devolverLibro(id);
             return ResponseEntity.ok(prestamo);
-        }catch (RuntimeException e){
+        } catch (NotFoundException e){
             return ResponseEntity.notFound().build();
         }
     }
