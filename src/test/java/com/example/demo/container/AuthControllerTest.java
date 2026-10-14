@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -147,5 +148,32 @@ class AuthControllerTest extends BaseIntegrationTest {
                         .content(objectMapper.writeValueAsString(
                                 Map.of("email", "lex3@test.es", "password", "mala"))))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void login_sinCamposDevuelve400() throws Exception {
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void register_emailSeNormalizaAMinusculas() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("nombre", "Ana", "email", "Ana@Test.es", "password", "Clave1234"))))
+                .andExpect(status().isOk());
+        usuarioRepository.findByEmail("ana@test.es").orElseThrow();
+    }
+
+    @Test
+    void logout_conCookieRevocaElToken() throws Exception {
+        Usuario u = crearUsuario("Ana", "cookie@test.es", "USER");
+        String token = tokenDe(u);
+        var cookie = new jakarta.servlet.http.Cookie("jwt_token", token);
+
+        mockMvc.perform(get("/api/usuarios/me").cookie(cookie)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/logout").cookie(cookie)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/usuarios/me").cookie(cookie)).andExpect(status().isUnauthorized());
     }
 }

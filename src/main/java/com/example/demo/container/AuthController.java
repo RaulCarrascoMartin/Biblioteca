@@ -1,12 +1,14 @@
 package com.example.demo.container;
 
 
+import com.example.demo.domain.dto.LoginDTO;
 import com.example.demo.domain.dto.UsuarioDTO;
 import com.example.demo.domain.dto.UsuarioResponseDTO;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.domain.service.JwtService;
 import com.example.demo.persistance.repository.UsuarioRepository;
 import com.example.demo.security.TokenDenylistService;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,13 +47,14 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody UsuarioDTO dto) {
-        if (usuarioRepository.findByEmail(dto.getEmail()).isPresent()) {
+        String email = dto.getEmail().trim().toLowerCase();
+        if (usuarioRepository.findByEmail(email).isPresent()) {
             return ResponseEntity.ok().build();
         }
 
         Usuario usuario = new Usuario();
-        usuario.setNombre(dto.getNombre());
-        usuario.setEmail(dto.getEmail());
+        usuario.setNombre(dto.getNombre().trim());
+        usuario.setEmail(email);
         usuario.setPassword(passwordEncoder.encode(dto.getPassword()));
         usuario.setRol("USER");
 
@@ -61,15 +64,16 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> credenciales, HttpServletRequest request){
-        String email = credenciales.get("email");
-        String password = credenciales.get("password");
+    public ResponseEntity<?> login(@Valid @RequestBody LoginDTO credenciales, HttpServletRequest request){
+        String email = credenciales.getEmail().trim().toLowerCase();
+        String password = credenciales.getPassword();
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(email, password)
         );
 
-        String token = jwtService.generarToken(email);
+        int version = usuarioRepository.findByEmail(email).map(Usuario::getTokenVersion).orElse(0);
+        String token = jwtService.generarToken(email, version);
 
         ResponseCookie cookie = ResponseCookie.from("jwt_token", token)
                 .httpOnly(true)
@@ -89,6 +93,13 @@ public class AuthController {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             tokenDenylistService.revoke(authHeader.substring(7));
+        }
+        if (request.getCookies() != null) {
+            for (Cookie c : request.getCookies()) {
+                if ("jwt_token".equals(c.getName())) {
+                    tokenDenylistService.revoke(c.getValue());
+                }
+            }
         }
 
         ResponseCookie clearCookie = ResponseCookie.from("jwt_token", "")

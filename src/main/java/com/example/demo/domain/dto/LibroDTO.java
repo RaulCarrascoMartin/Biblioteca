@@ -9,9 +9,11 @@ import lombok.Data;
 public class LibroDTO {
 
     @NotBlank(message = "El título es obligatorio")
+    @Size(max = 255, message = "El título es demasiado largo")
     private String titulo;
 
     @NotBlank(message = "El autor es obligatorio")
+    @Size(max = 255, message = "El autor es demasiado largo")
     private String autor;
 
     @NotBlank(message = "El ISBN es obligatorio")

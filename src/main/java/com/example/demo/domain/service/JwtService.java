@@ -16,6 +16,7 @@ import java.util.function.Function;
 public class JwtService {
 
     private static final int MIN_SECRET_BYTES = 32;
+    private static final String CLAIM_VERSION = "tv";
 
     private final SecretKey signingKey;
     private final long expirationMs;
@@ -38,9 +39,14 @@ public class JwtService {
     }
 
     public String generarToken(String email) {
+        return generarToken(email, 0);
+    }
+
+    public String generarToken(String email, int version) {
         Date now = new Date(System.currentTimeMillis());
         return Jwts.builder()
                 .subject(email)
+                .claim(CLAIM_VERSION, version)
                 .issuer(issuer)
                 .audience().add(audience).and()
                 .issuedAt(now)
@@ -61,6 +67,14 @@ public class JwtService {
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    public boolean esTokenValido(String token, String email, int versionActual) {
+        if (!esTokenValido(token, email)) {
+            return false;
+        }
+        Integer version = extraerClaim(token, c -> c.get(CLAIM_VERSION, Integer.class));
+        return version != null && version == versionActual;
     }
 
     private boolean haExpirado(Claims claims) {

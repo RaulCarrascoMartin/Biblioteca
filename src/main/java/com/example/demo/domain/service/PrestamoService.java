@@ -70,9 +70,16 @@ public class PrestamoService {
         Prestamo prestamo = prestamoRepository.findById(prestamoId)
                 .orElseThrow(() -> new NotFoundException("Prestamo no encontrado"));
 
-        prestamo.setFechaDevolucion(LocalDate.now());
+        // Bloquea el libro para serializar con crearPrestamo y revalida tras el bloqueo
+        Libro libro = libroRepository.findByIdWithLock(prestamo.getLibro().getId())
+                .orElseThrow(() -> new NotFoundException("Libro no encontrado"));
 
-        prestamo.getLibro().setDisponible(true);
+        if (prestamo.getFechaDevolucion() != null) {
+            throw new IllegalStateException("El préstamo ya fue devuelto");
+        }
+
+        prestamo.setFechaDevolucion(LocalDate.now());
+        libro.setDisponible(true);
 
         return new PrestamoResponseDTO(prestamoRepository.save(prestamo));
     }

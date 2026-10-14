@@ -12,6 +12,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -197,5 +198,42 @@ class UsuarioControllerTest extends BaseIntegrationTest {
         mockMvc.perform(delete("/api/usuarios/" + ana.getId())
                         .header("Authorization", "Bearer " + tokenDe(ana)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void revocarSesiones_invalidaLosTokensAnterioresDelUsuario() throws Exception {
+        String viejo = tokenDe(ana);
+        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + viejo))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/usuarios/" + ana.getId() + "/revocar-sesiones")
+                        .header("Authorization", "Bearer " + tokenDe(admin)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + viejo))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + tokenDe(usuarioRepository.findById(ana.getId()).orElseThrow())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void revocarSesiones_deOtroUsuario_403() throws Exception {
+        Usuario bob = crearUsuario("Bob", "revoca-bob@test.es", "USER");
+        mockMvc.perform(post("/api/usuarios/" + bob.getId() + "/revocar-sesiones")
+                        .header("Authorization", "Bearer " + tokenDe(ana)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cambiarPassword_invalidaTokensAnteriores() throws Exception {
+        String viejo = tokenDe(ana);
+        mockMvc.perform(put("/api/usuarios/" + ana.getId())
+                        .header("Authorization", "Bearer " + viejo)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"Ana\",\"email\":\"" + ana.getEmail() + "\",\"password\":\"NuevaClave123\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + viejo))
+                .andExpect(status().isUnauthorized());
     }
 }

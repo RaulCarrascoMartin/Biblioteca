@@ -344,9 +344,9 @@
       ev.preventDefault();
       var email = $("f-email").value.trim();
       var password = $("f-password").value;
-      if (!email || !email.indexOf("@")) { mostrarSello("Indique un correo v\u00e1lido.", true); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { mostrarSello("Indique un correo v\u00e1lido.", true); return; }
       if (esRegistro && !$("f-nombre").value.trim()) { mostrarSello("Indique su nombre para el alta.", true); return; }
-      if (password.length < 8) { mostrarSello("La contrase\u00f1a requiere 8 caracteres como m\u00ednimo.", true); return; }
+      if (password.length < 8 || password.length > 72) { mostrarSello("La contrase\u00f1a debe tener entre 8 y 72 caracteres.", true); return; }
       autenticar(email, password);
     });
 

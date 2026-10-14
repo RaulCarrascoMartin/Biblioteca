@@ -55,9 +55,20 @@ public class UsuarioController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authz.esDueñoDeUsuario(#id)")
+    @PostMapping("/{id}/revocar-sesiones")
+    public ResponseEntity<Void> revocarSesiones(@PathVariable Long id) {
+        return usuarioService.revocarSesiones(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Long id, @AuthenticationPrincipal UserDetails principal) {
+        if (usuarioService.obtenerPorEmail(principal.getUsername()).map(u -> u.getId().equals(id)).orElse(false)) {
+            throw new IllegalStateException("No puede eliminar su propia cuenta");
+        }
         usuarioService.eliminar(id);
         return ResponseEntity.noContent().build();
     }

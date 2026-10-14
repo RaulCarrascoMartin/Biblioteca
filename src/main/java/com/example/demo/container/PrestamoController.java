@@ -15,6 +15,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Validated
 @RestController
@@ -58,7 +59,7 @@ public class PrestamoController {
         } catch (NotFoundException e){
             return ResponseEntity.notFound().build();
         } catch (IllegalStateException e){
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -70,6 +71,8 @@ public class PrestamoController {
             return ResponseEntity.ok(prestamo);
         } catch (NotFoundException e){
             return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e){
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
     }
 

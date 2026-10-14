@@ -27,6 +27,10 @@ public class Usuario {
 
     private String rol = "USER";
 
+    /** Se incrementa para invalidar todos los tokens emitidos antes (cambio de clave, cierre global). */
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

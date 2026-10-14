@@ -23,7 +23,7 @@
     if (payload !== undefined) opts.body = JSON.stringify(payload);
 
     return fetch(path, opts).then(function (res) {
-      if (res.status === 401) {
+      if (res.status === 401 && path.indexOf("/api/auth/") !== 0) {
         api.setToken(null);
         window.dispatchEvent(new CustomEvent("sesion:caducada"));
         throw new Error("Sesi\u00f3n caducada. Vuelva a firmar la ficha.");

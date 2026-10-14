@@ -15,6 +15,9 @@ public class TokenDenylistService {
     public void revoke(String token) {
         String sig = signature(token);
         if (sig != null) {
+            if (denylist.size() > 1000) {
+                evictExpired();
+            }
             denylist.put(sig, Instant.now().plusSeconds(1800));
         }
     }

@@ -1,6 +1,7 @@
 package com.example.demo.security;
 
 
+import com.example.demo.domain.service.AuthUser;
 import com.example.demo.domain.service.CustomUserDetailsService;
 import com.example.demo.domain.service.JwtService;
 import jakarta.servlet.FilterChain;
@@ -73,7 +74,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                if (jwtService.esTokenValido(token, email)) {
+                int version = userDetails instanceof AuthUser au ? au.getTokenVersion() : 0;
+                if (jwtService.esTokenValido(token, email, version)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()
                     );

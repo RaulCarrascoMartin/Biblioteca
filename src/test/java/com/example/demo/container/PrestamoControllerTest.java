@@ -159,4 +159,19 @@ class PrestamoControllerTest extends BaseIntegrationTest {
                         .header("Authorization", "Bearer " + tokenDe(admin)))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void devolver_dosVeces_409YNoReabreElLibroPrestadoAOtro() throws Exception {
+        long prestamo = crearPrestamoComo(ana, libroA);
+        mockMvc.perform(put("/api/prestamos/" + prestamo + "/devolver")
+                        .header("Authorization", "Bearer " + tokenDe(ana)))
+                .andExpect(status().isOk());
+        crearPrestamoComo(bob, libroA);
+
+        mockMvc.perform(put("/api/prestamos/" + prestamo + "/devolver")
+                        .header("Authorization", "Bearer " + tokenDe(ana)))
+                .andExpect(status().isConflict());
+
+        assertTrue(!libroRepository.findById(libroA.getId()).orElseThrow().isDisponible());
+    }
 }

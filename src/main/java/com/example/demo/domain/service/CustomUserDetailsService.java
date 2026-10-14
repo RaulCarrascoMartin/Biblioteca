@@ -5,7 +5,6 @@ import com.example.demo.domain.entity.Usuario;
 import com.example.demo.persistance.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -25,10 +24,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Credenciales incorrectas"));
 
-        return new User(
+        return new AuthUser(
                 usuario.getEmail(),
                 usuario.getPassword(),
-                List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getRol()))
+                List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getRol())),
+                usuario.getTokenVersion()
         );
     }
 }

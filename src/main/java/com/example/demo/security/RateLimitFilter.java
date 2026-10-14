@@ -41,6 +41,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         if (limit != null) {
+            if (windows.size() > 10_000) {
+                Instant now = Instant.now();
+                windows.entrySet().removeIf(e -> e.getValue().start().plus(WINDOW).isBefore(now));
+            }
             String key = path + ":" + getClientIP(request);
             FixedWindow window = windows.compute(key, (k, existing) -> {
                 if (existing == null || existing.start().plus(WINDOW).isBefore(Instant.now())) {

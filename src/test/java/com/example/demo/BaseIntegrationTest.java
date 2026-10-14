@@ -74,6 +74,6 @@ public abstract class BaseIntegrationTest {
     }
 
     protected String tokenDe(Usuario u) {
-        return jwtService.generarToken(u.getEmail());
+        return jwtService.generarToken(u.getEmail(), u.getTokenVersion());
     }
 }
