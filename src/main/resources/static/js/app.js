@@ -13,7 +13,7 @@
   function genEtiqueta(libro) {
     var g = covers.genero(libro && libro.genero);
     if (!g) return "";
-    return '<span class="book-gen" style="--gen:' + g.tapa + '"><i></i>' + g.label + "</span>";
+    return '<span class="book-gen" style="--gen:' + covers.tapaPara(libro)[0] + '"><i></i>' + g.label + "</span>";
   }
 
   /* ---------------- Toast ---------------- */
