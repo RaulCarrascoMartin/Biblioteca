@@ -1,7 +1,7 @@
 package com.example.demo.security;
 
-import com.example.demo.persistance.repository.PrestamoRepository;
-import com.example.demo.persistance.repository.UsuarioRepository;
+import com.example.demo.domain.port.PrestamoRepository;
+import com.example.demo.domain.port.UsuarioRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;

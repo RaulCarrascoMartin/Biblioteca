@@ -1,5 +1,6 @@
-package com.example.demo.domain.service;
+package com.example.demo.security;
 
+import com.example.demo.domain.port.TokenService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -13,7 +14,7 @@ import java.util.Date;
 import java.util.function.Function;
 
 @Service
-public class JwtService {
+public class JwtService implements TokenService {
 
     private static final int MIN_SECRET_BYTES = 32;
     private static final String CLAIM_VERSION = "tv";
@@ -42,6 +43,7 @@ public class JwtService {
         return generarToken(email, 0);
     }
 
+    @Override
     public String generarToken(String email, int version) {
         Date now = new Date(System.currentTimeMillis());
         return Jwts.builder()

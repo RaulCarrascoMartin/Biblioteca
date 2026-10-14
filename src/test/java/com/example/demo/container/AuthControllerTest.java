@@ -2,7 +2,7 @@ package com.example.demo.container;
 
 import com.example.demo.BaseIntegrationTest;
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.persistance.repository.UsuarioRepository;
+import com.example.demo.persistance.repository.JpaUsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;

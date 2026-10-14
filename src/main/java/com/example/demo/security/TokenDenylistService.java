@@ -1,5 +1,6 @@
 package com.example.demo.security;
 
+import com.example.demo.domain.port.TokenRevocation;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -8,10 +9,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-public class TokenDenylistService {
+public class TokenDenylistService implements TokenRevocation {
 
     private final Map<String, Instant> denylist = new ConcurrentHashMap<>();
 
+    @Override
     public void revoke(String token) {
         String sig = signature(token);
         if (sig != null) {

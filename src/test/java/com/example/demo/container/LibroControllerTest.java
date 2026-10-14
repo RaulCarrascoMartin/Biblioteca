@@ -4,7 +4,7 @@ import com.example.demo.BaseIntegrationTest;
 import com.example.demo.domain.entity.Genero;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.persistance.repository.LibroRepository;
+import com.example.demo.persistance.repository.JpaLibroRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;

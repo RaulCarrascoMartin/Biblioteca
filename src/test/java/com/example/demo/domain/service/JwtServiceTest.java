@@ -1,5 +1,6 @@
 package com.example.demo.domain.service;
 
+import com.example.demo.security.JwtService;
 import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

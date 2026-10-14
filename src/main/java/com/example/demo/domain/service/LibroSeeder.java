@@ -2,7 +2,7 @@ package com.example.demo.domain.service;
 
 import com.example.demo.domain.entity.Genero;
 import com.example.demo.domain.entity.Libro;
-import com.example.demo.persistance.repository.LibroRepository;
+import com.example.demo.domain.port.LibroRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;

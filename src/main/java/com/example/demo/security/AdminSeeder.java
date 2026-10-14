@@ -1,26 +1,26 @@
 package com.example.demo.security;
 
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.persistance.repository.UsuarioRepository;
+import com.example.demo.domain.port.PasswordHasher;
+import com.example.demo.domain.port.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AdminSeeder implements CommandLineRunner {
 
     private final UsuarioRepository usuarioRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordHasher passwordHasher;
     private final String adminEmail;
     private final String adminPassword;
 
     public AdminSeeder(UsuarioRepository usuarioRepository,
-                       PasswordEncoder passwordEncoder,
+                       PasswordHasher passwordHasher,
                        @Value("${admin.email:}") String adminEmail,
                        @Value("${admin.password:}") String adminPassword) {
         this.usuarioRepository = usuarioRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.passwordHasher = passwordHasher;
         this.adminEmail = adminEmail;
         this.adminPassword = adminPassword;
     }
@@ -36,7 +36,7 @@ public class AdminSeeder implements CommandLineRunner {
         Usuario admin = new Usuario();
         admin.setNombre("Administrador");
         admin.setEmail(adminEmail);
-        admin.setPassword(passwordEncoder.encode(adminPassword));
+        admin.setPassword(passwordHasher.encode(adminPassword));
         admin.setRol("ADMIN");
         usuarioRepository.save(admin);
     }

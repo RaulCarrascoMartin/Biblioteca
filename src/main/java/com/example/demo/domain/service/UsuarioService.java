@@ -1,27 +1,25 @@
 package com.example.demo.domain.service;
 
+import lombok.RequiredArgsConstructor;
+
 import com.example.demo.domain.dto.UsuarioUpdateDTO;
+import com.example.demo.domain.port.PasswordHasher;
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.persistance.repository.PrestamoRepository;
-import com.example.demo.persistance.repository.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.example.demo.domain.port.PrestamoRepository;
+import com.example.demo.domain.port.UsuarioRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class UsuarioService {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final PrestamoRepository prestamoRepository;
 
-    @Autowired
-    private PrestamoRepository prestamoRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final PasswordHasher passwordHasher;
 
     public List<Usuario> obtenerTodos(){
         return usuarioRepository.findAll();
@@ -51,7 +49,7 @@ public class UsuarioService {
             existente.setEmail(nuevoEmail);
 
             if (usuarioNuevo.getPassword() != null && !usuarioNuevo.getPassword().isBlank()) {
-                existente.setPassword(passwordEncoder.encode(usuarioNuevo.getPassword()));
+                existente.setPassword(passwordHasher.encode(usuarioNuevo.getPassword()));
                 existente.setTokenVersion(existente.getTokenVersion() + 1);
             }
 

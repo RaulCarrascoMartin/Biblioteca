@@ -1,15 +1,16 @@
 package com.example.demo.domain.service;
 
+import lombok.RequiredArgsConstructor;
+
 
 import com.example.demo.domain.dto.PrestamoResponseDTO;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Prestamo;
 import com.example.demo.domain.entity.Usuario;
 import com.example.demo.domain.exception.NotFoundException;
-import com.example.demo.persistance.repository.LibroRepository;
-import com.example.demo.persistance.repository.PrestamoRepository;
-import com.example.demo.persistance.repository.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.demo.domain.port.LibroRepository;
+import com.example.demo.domain.port.PrestamoRepository;
+import com.example.demo.domain.port.UsuarioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,16 +19,13 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class PrestamoService {
 
-    @Autowired
-    private PrestamoRepository prestamoRepository;
+    private final PrestamoRepository prestamoRepository;
+    private final LibroRepository libroRepository;
 
-    @Autowired
-    private LibroRepository libroRepository;
-
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
     public List<Prestamo> obtenerTodos(){
         return prestamoRepository.findAll();

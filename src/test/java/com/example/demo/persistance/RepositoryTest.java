@@ -3,9 +3,9 @@ package com.example.demo.persistance;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Prestamo;
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.persistance.repository.LibroRepository;
-import com.example.demo.persistance.repository.PrestamoRepository;
-import com.example.demo.persistance.repository.UsuarioRepository;
+import com.example.demo.persistance.repository.JpaLibroRepository;
+import com.example.demo.persistance.repository.JpaPrestamoRepository;
+import com.example.demo.persistance.repository.JpaUsuarioRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -24,13 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RepositoryTest {
 
     @Autowired
-    private UsuarioRepository usuarioRepository;
+    private JpaUsuarioRepository usuarioRepository;
 
     @Autowired
-    private LibroRepository libroRepository;
+    private JpaLibroRepository libroRepository;
 
     @Autowired
-    private PrestamoRepository prestamoRepository;
+    private JpaPrestamoRepository prestamoRepository;
 
     private Usuario usuario(String email) {
         Usuario u = new Usuario();

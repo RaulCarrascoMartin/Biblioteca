@@ -1,9 +1,10 @@
-package com.example.demo.domain.service;
+package com.example.demo.security;
+
+import lombok.RequiredArgsConstructor;
 
 
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.persistance.repository.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.demo.domain.port.UsuarioRepository;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,10 +15,10 @@ import java.util.List;
 
 
 @Service
+@RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {

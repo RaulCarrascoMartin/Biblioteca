@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
-public interface LibroRepository extends JpaRepository<Libro, Long> {
+public interface JpaLibroRepository extends JpaRepository<Libro, Long> {
 
     Optional<Libro> findByIsbn(String isbn);
 

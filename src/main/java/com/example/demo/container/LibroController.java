@@ -1,11 +1,12 @@
 package com.example.demo.container;
 
+import lombok.RequiredArgsConstructor;
+
 import com.example.demo.domain.dto.LibroDTO;
 import com.example.demo.domain.dto.LibroResponseDTO;
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.service.LibroService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,10 +17,10 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/libros")
+@RequiredArgsConstructor
 public class LibroController {
 
-    @Autowired
-    private LibroService libroService;
+    private final LibroService libroService;
 
     @GetMapping
     public List<LibroResponseDTO> obtenerTodos(){

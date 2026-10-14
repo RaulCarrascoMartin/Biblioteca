@@ -1,11 +1,12 @@
 package com.example.demo.container;
 
+import lombok.RequiredArgsConstructor;
+
 import com.example.demo.domain.dto.UsuarioDTO;
 import com.example.demo.domain.dto.UsuarioResponseDTO;
 import com.example.demo.domain.dto.UsuarioUpdateDTO;
 import com.example.demo.domain.service.UsuarioService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,10 +17,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/usuarios")
+@RequiredArgsConstructor
 public class UsuarioController {
 
-    @Autowired
-    private UsuarioService usuarioService;
+    private final UsuarioService usuarioService;
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping

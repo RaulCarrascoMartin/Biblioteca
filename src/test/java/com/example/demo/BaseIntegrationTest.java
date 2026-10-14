@@ -2,10 +2,10 @@ package com.example.demo;
 
 import com.example.demo.domain.entity.Libro;
 import com.example.demo.domain.entity.Usuario;
-import com.example.demo.domain.service.JwtService;
-import com.example.demo.persistance.repository.LibroRepository;
-import com.example.demo.persistance.repository.PrestamoRepository;
-import com.example.demo.persistance.repository.UsuarioRepository;
+import com.example.demo.security.JwtService;
+import com.example.demo.persistance.repository.JpaLibroRepository;
+import com.example.demo.persistance.repository.JpaPrestamoRepository;
+import com.example.demo.persistance.repository.JpaUsuarioRepository;
 import com.example.demo.security.RateLimitFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,13 +26,13 @@ public abstract class BaseIntegrationTest {
     protected final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
-    protected UsuarioRepository usuarioRepository;
+    protected JpaUsuarioRepository usuarioRepository;
 
     @Autowired
-    protected LibroRepository libroRepository;
+    protected JpaLibroRepository libroRepository;
 
     @Autowired
-    protected PrestamoRepository prestamoRepository;
+    protected JpaPrestamoRepository prestamoRepository;
 
     @Autowired
     protected PasswordEncoder passwordEncoder;
