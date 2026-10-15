@@ -1,12 +1,12 @@
 package com.example.demo;
 
-import com.example.demo.domain.entity.Libro;
-import com.example.demo.domain.entity.Usuario;
-import com.example.demo.security.JwtService;
-import com.example.demo.persistance.repository.JpaLibroRepository;
-import com.example.demo.persistance.repository.JpaPrestamoRepository;
-import com.example.demo.persistance.repository.JpaUsuarioRepository;
-import com.example.demo.security.RateLimitFilter;
+import com.example.demo.libro.domain.Libro;
+import com.example.demo.usuario.domain.Usuario;
+import com.example.demo.auth.security.JwtService;
+import com.example.demo.libro.persistence.JpaLibroRepository;
+import com.example.demo.prestamo.persistence.JpaPrestamoRepository;
+import com.example.demo.usuario.persistence.JpaUsuarioRepository;
+import com.example.demo.auth.security.RateLimitFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
