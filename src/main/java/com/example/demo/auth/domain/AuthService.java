@@ -24,15 +24,15 @@ public class AuthService {
 
     /** Devuelve vacío si el email ya estaba registrado (no se revela al cliente). */
     public Optional<Usuario> registrar(UsuarioDTO dto) {
-        String email = dto.getEmail().trim().toLowerCase();
+        String email = dto.email().trim().toLowerCase();
         if (usuarioRepository.findByEmail(email).isPresent()) {
             return Optional.empty();
         }
 
         Usuario usuario = new Usuario();
-        usuario.setNombre(dto.getNombre().trim());
+        usuario.setNombre(dto.nombre().trim());
         usuario.setEmail(email);
-        usuario.setPassword(passwordHasher.encode(dto.getPassword()));
+        usuario.setPassword(passwordHasher.encode(dto.password()));
         usuario.setRol("USER");
 
         return Optional.of(usuarioRepository.save(usuario));

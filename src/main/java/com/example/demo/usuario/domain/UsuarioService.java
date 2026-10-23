@@ -38,17 +38,17 @@ public class UsuarioService {
 
     public Optional<Usuario> actualizar(Long id, UsuarioUpdateDTO usuarioNuevo) {
         return usuarioRepository.findById(id).map(existente -> {
-            String nuevoEmail = usuarioNuevo.getEmail().trim().toLowerCase();
+            String nuevoEmail = usuarioNuevo.email().trim().toLowerCase();
             if (!existente.getEmail().equalsIgnoreCase(nuevoEmail)) {
                 if (usuarioRepository.findByEmail(nuevoEmail).isPresent()) {
                     throw new IllegalArgumentException("El email ya está registrado");
                 }
             }
-            existente.setNombre(usuarioNuevo.getNombre().trim());
+            existente.setNombre(usuarioNuevo.nombre().trim());
             existente.setEmail(nuevoEmail);
 
-            if (usuarioNuevo.getPassword() != null && !usuarioNuevo.getPassword().isBlank()) {
-                existente.setPassword(passwordHasher.encode(usuarioNuevo.getPassword()));
+            if (usuarioNuevo.password() != null && !usuarioNuevo.password().isBlank()) {
+                existente.setPassword(passwordHasher.encode(usuarioNuevo.password()));
                 existente.setTokenVersion(existente.getTokenVersion() + 1);
             }
 

@@ -35,12 +35,12 @@ class PrestamoServiceTest extends BaseIntegrationTest {
 
         PrestamoResponseDTO dto = prestamoService.crearPrestamo(libro.getId(), ana.getEmail());
 
-        assertNotNull(dto.getId());
-        assertEquals(LocalDate.now(), dto.getFechaPrestamo());
-        assertEquals(null, dto.getFechaDevolucion());
-        assertEquals(libro.getId(), dto.getLibro().getId());
-        assertEquals(libro.getTitulo(), dto.getLibro().getTitulo());
-        assertEquals(ana.getNombre(), dto.getUsuarioNombre());
+        assertNotNull(dto.id());
+        assertEquals(LocalDate.now(), dto.fechaPrestamo());
+        assertEquals(null, dto.fechaDevolucion());
+        assertEquals(libro.getId(), dto.libro().id());
+        assertEquals(libro.getTitulo(), dto.libro().titulo());
+        assertEquals(ana.getNombre(), dto.usuarioNombre());
         assertFalse(libroRepository.findById(libro.getId()).orElseThrow().isDisponible());
     }
 
@@ -74,9 +74,9 @@ class PrestamoServiceTest extends BaseIntegrationTest {
         Libro libro = crearLibro("Libro PS5");
         PrestamoResponseDTO prestado = prestamoService.crearPrestamo(libro.getId(), ana.getEmail());
 
-        PrestamoResponseDTO devuelto = prestamoService.devolverLibro(prestado.getId());
+        PrestamoResponseDTO devuelto = prestamoService.devolverLibro(prestado.id());
 
-        assertEquals(LocalDate.now(), devuelto.getFechaDevolucion());
+        assertEquals(LocalDate.now(), devuelto.fechaDevolucion());
         assertTrue(libroRepository.findById(libro.getId()).orElseThrow().isDisponible());
     }
 

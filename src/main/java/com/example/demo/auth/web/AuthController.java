@@ -35,7 +35,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginDTO credenciales, HttpServletRequest request) {
-        String token = authService.login(credenciales.getEmail(), credenciales.getPassword());
+        String token = authService.login(credenciales.email(), credenciales.password());
 
         ResponseCookie cookie = ResponseCookie.from("jwt_token", token)
                 .httpOnly(true)

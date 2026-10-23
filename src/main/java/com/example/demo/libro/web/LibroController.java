@@ -41,15 +41,15 @@ public class LibroController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<?> crear(@Valid @RequestBody LibroDTO dto){
-        if (libroService.obtenerPorIsbn(dto.getIsbn()).isPresent()){
+        if (libroService.obtenerPorIsbn(dto.isbn()).isPresent()){
             return ResponseEntity.status(HttpStatus.CONFLICT).body("El ISBN ya existe en el catálogo");
         }
 
         Libro libro = new Libro();
-        libro.setTitulo(dto.getTitulo());
-        libro.setAutor(dto.getAutor());
-        libro.setIsbn(dto.getIsbn());
-        libro.setGenero(dto.getGenero());
+        libro.setTitulo(dto.titulo());
+        libro.setAutor(dto.autor());
+        libro.setIsbn(dto.isbn());
+        libro.setGenero(dto.genero());
         libro.setDisponible(true);
 
         return ResponseEntity.ok(new LibroResponseDTO(libroService.guardar(libro)));
@@ -63,17 +63,17 @@ public class LibroController {
             return ResponseEntity.notFound().build();
         }
 
-        Optional<Libro> duplicado = libroService.obtenerPorIsbn(dto.getIsbn());
+        Optional<Libro> duplicado = libroService.obtenerPorIsbn(dto.isbn());
         if (duplicado.isPresent() && !duplicado.get().getId().equals(id)){
             return ResponseEntity.status(HttpStatus.CONFLICT).body("El ISBN ya existe en el catálogo");
         }
 
         Libro libro = existente.get();
-        libro.setTitulo(dto.getTitulo());
-        libro.setAutor(dto.getAutor());
-        libro.setIsbn(dto.getIsbn());
-        if (dto.getGenero() != null) {
-            libro.setGenero(dto.getGenero());
+        libro.setTitulo(dto.titulo());
+        libro.setAutor(dto.autor());
+        libro.setIsbn(dto.isbn());
+        if (dto.genero() != null) {
+            libro.setGenero(dto.genero());
         }
 
         return ResponseEntity.ok(new LibroResponseDTO(libroService.guardar(libro)));
