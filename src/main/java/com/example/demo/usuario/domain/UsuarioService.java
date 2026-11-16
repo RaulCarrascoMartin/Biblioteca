@@ -1,12 +1,9 @@
 package com.example.demo.usuario.domain;
 
-import lombok.RequiredArgsConstructor;
-
-import com.example.demo.usuario.domain.UsuarioUpdateDTO;
 import com.example.demo.shared.PasswordHasher;
-import com.example.demo.usuario.domain.Usuario;
-import com.example.demo.usuario.domain.UsuarioRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,32 +14,31 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final List<UsuarioEnUsoChecker> enUsoCheckers;
-
     private final PasswordHasher passwordHasher;
 
-    public List<Usuario> obtenerTodos(){
-        return usuarioRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<UsuarioResponseDTO> obtenerTodos() {
+        return usuarioRepository.findAll().stream().map(UsuarioResponseDTO::new).toList();
     }
 
-    public Optional<Usuario> obtenerPorId(Long id){
-        return usuarioRepository.findById(id);
+    @Transactional(readOnly = true)
+    public Optional<UsuarioResponseDTO> obtenerPorId(Long id) {
+        return usuarioRepository.findById(id).map(UsuarioResponseDTO::new);
     }
 
-    public Optional<Usuario> obtenerPorEmail(String email){
-        return usuarioRepository.findByEmail(email);
+    @Transactional(readOnly = true)
+    public Optional<UsuarioResponseDTO> obtenerPorEmail(String email) {
+        return usuarioRepository.findByEmail(email).map(UsuarioResponseDTO::new);
     }
 
-    public Usuario guardar(Usuario usuario){
-        return usuarioRepository.save(usuario);
-    }
-
-    public Optional<Usuario> actualizar(Long id, UsuarioUpdateDTO usuarioNuevo) {
+    /** Devuelve vacío si el usuario no existe. */
+    @Transactional
+    public Optional<UsuarioResponseDTO> actualizar(Long id, UsuarioUpdateDTO usuarioNuevo) {
         return usuarioRepository.findById(id).map(existente -> {
             String nuevoEmail = usuarioNuevo.email().trim().toLowerCase();
-            if (!existente.getEmail().equalsIgnoreCase(nuevoEmail)) {
-                if (usuarioRepository.findByEmail(nuevoEmail).isPresent()) {
-                    throw new IllegalArgumentException("El email ya está registrado");
-                }
+            if (!existente.getEmail().equalsIgnoreCase(nuevoEmail)
+                    && usuarioRepository.findByEmail(nuevoEmail).isPresent()) {
+                throw new EmailYaRegistradoException();
             }
             existente.setNombre(usuarioNuevo.nombre().trim());
             existente.setEmail(nuevoEmail);
@@ -52,10 +48,11 @@ public class UsuarioService {
                 existente.setTokenVersion(existente.getTokenVersion() + 1);
             }
 
-            return usuarioRepository.save(existente);
+            return new UsuarioResponseDTO(usuarioRepository.save(existente));
         });
     }
 
+    @Transactional
     public boolean revocarSesiones(Long id) {
         return usuarioRepository.findById(id).map(u -> {
             u.setTokenVersion(u.getTokenVersion() + 1);
@@ -64,9 +61,17 @@ public class UsuarioService {
         }).orElse(false);
     }
 
-    public void eliminar(Long id){
+    /** @param emailSolicitante email de quien pide la eliminación; no puede eliminarse a sí mismo */
+    @Transactional
+    public void eliminar(Long id, String emailSolicitante) {
+        boolean esElMismo = usuarioRepository.findByEmail(emailSolicitante)
+                .map(u -> u.getId().equals(id))
+                .orElse(false);
+        if (esElMismo) {
+            throw new AutoEliminacionException();
+        }
         if (enUsoCheckers.stream().anyMatch(c -> c.estaEnUso(id))) {
-            throw new IllegalStateException("No se puede eliminar un usuario con préstamos registrados");
+            throw new UsuarioConPrestamosException();
         }
         usuarioRepository.deleteById(id);
     }

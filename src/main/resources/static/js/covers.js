@@ -1,78 +1,65 @@
-(function () {
-  "use strict";
+import { esc } from "./dom.js";
 
-  var TAPAS = [
-    ["#6f3a34", "#5a2d29"], /* burdeos */
-    ["#48604a", "#3a4f3d"], /* verde musgo */
-    ["#3c5871", "#334a60"], /* azul apagado */
-    ["#c9973f", "#a97a29"], /* ocre */
-    ["#eab08f", "#d68a62"], /* melocotón pastel */
-    ["#d07a47", "#b25a2c"], /* terracota */
-    ["#596069", "#4b5159"], /* pizarra */
-    ["#d3a648", "#b98a33"]  /* mostaza */
-  ];
+const TAPAS = [
+  ["#6f3a34", "#5a2d29"], /* burdeos */
+  ["#48604a", "#3a4f3d"], /* verde musgo */
+  ["#3c5871", "#334a60"], /* azul apagado */
+  ["#c9973f", "#a97a29"], /* ocre */
+  ["#eab08f", "#d68a62"], /* melocoton pastel */
+  ["#d07a47", "#b25a2c"], /* terracota */
+  ["#596069", "#4b5159"], /* pizarra */
+  ["#d3a648", "#b98a33"]  /* mostaza */
+];
 
-  function hash(s) {
-    var h = 5381;
-    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-    return Math.abs(h);
-  }
+const GENEROS = {
+  CLASICA:         { label: "Clásica",         tapa: 0 },
+  FANTASIA:        { label: "Fantasía",        tapa: 1 },
+  CIENCIA_FICCION: { label: "Ciencia ficción", tapa: 2 },
+  HISTORICA:       { label: "Histórica",       tapa: 3 },
+  ROMANTICA:       { label: "Romántica",       tapa: 4 },
+  AVENTURAS:       { label: "Aventuras",            tapa: 5 },
+  MISTERIO:        { label: "Misterio",             tapa: 6 },
+  POESIA:          { label: "Poesía",          tapa: 7 }
+};
 
-  var GENEROS = {
-    CLASICA:         { label: "Cl\u00e1sica",         tapa: 0 },
-    FANTASIA:        { label: "Fantas\u00eda",        tapa: 1 },
-    CIENCIA_FICCION: { label: "Ciencia ficci\u00f3n", tapa: 2 },
-    HISTORICA:       { label: "Hist\u00f3rica",       tapa: 3 },
-    ROMANTICA:       { label: "Rom\u00e1ntica",       tapa: 4 },
-    AVENTURAS:       { label: "Aventuras",            tapa: 5 },
-    MISTERIO:        { label: "Misterio",             tapa: 6 },
-    POESIA:          { label: "Poes\u00eda",          tapa: 7 }
-  };
+const hash = (s) => {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+};
 
-  function genero(g) {
-    return (g && GENEROS[g]) || null;
-  }
+export const genero = (g) => (g && GENEROS[g]) || null;
 
-  function tapaPara(libro) {
-    var def = genero(libro && libro.genero);
-    if (def) return TAPAS[def.tapa];
-    var semilla = (libro.isbn || "") + "|" + (libro.titulo || "");
-    if (!semilla) semilla = String(libro.id || 0);
-    return TAPAS[hash(semilla) % TAPAS.length];
-  }
+export const tapaPara = (libro) => {
+  const def = genero(libro && libro.genero);
+  if (def) return TAPAS[def.tapa];
+  let semilla = (libro.isbn || "") + "|" + (libro.titulo || "");
+  if (!semilla) semilla = String(libro.id || 0);
+  return TAPAS[hash(semilla) % TAPAS.length];
+};
 
-  function esc(ctx) {
-    return String(ctx).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
+/* HTML de una cubierta (lomo + texto vertical). Sin numero se omite la signatura. */
+export const cubierta = (libro, numero) => {
+  const tapa = tapaPara(libro);
+  const numeroHtml = numero ? `<span class="cover__num">${esc(numero)}</span>` : "";
+  return (
+    `<div class="cover" style="--tapa:${tapa[0]}" title="${esc(libro.titulo)}">` +
+      '<span class="cover__line"></span>' +
+      '<span class="cover__spine">' +
+        `<span class="cover__title">${esc(libro.titulo)}</span>${numeroHtml}` +
+      "</span>" +
+    "</div>"
+  );
+};
 
-  /*
-   * Devuelve el HTML de una cubierta de libro (lomo + texto vertical).
-   * Si numero no viene, se omite la signatura.
-   */
-  function cubierta(libro, numero) {
-    var tapa = tapaPara(libro);
-    var numeroHtml = numero
-      ? "<span class=\"spine-num\">" + esc(numero) + "</span>"
-      : "";
-    return (
-      '<div class="book-cover" style="--tapa:' + tapa[0] + '" title="' + esc(libro.titulo) + '">' +
-        '<span class="tapa-linea"></span>' +
-        '<span class="spine-texto">' +
-          '<span class="spine-titulo">' + esc(libro.titulo) + "</span>" +
-          numeroHtml +
-        "</span>" +
-      "</div>"
-    );
-  }
+/* Etiqueta de genero; cadena vacia si el libro no tiene genero conocido. */
+export const etiquetaGenero = (libro) => {
+  const g = genero(libro && libro.genero);
+  if (!g) return "";
+  return `<span class="genre-tag" style="--gen:${tapaPara(libro)[0]}"><i class="genre-tag__dot"></i>${g.label}</span>`;
+};
 
-  function ficon(s) {
-    return s.charAt(0).toUpperCase();
-  }
+export const ficon = (s) => String(s).charAt(0).toUpperCase();
 
-  function fecha(iso) {
-    var d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" });
-  }
-
-  window.covers = { tapaPara: tapaPara, cubierta: cubierta, ficon: ficon, fecha: fecha, genero: genero };
-})();
+export const fecha = (iso) =>
+  new Date(iso + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" });

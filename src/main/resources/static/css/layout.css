@@ -1,0 +1,75 @@
+/* Layout: lampara, cabecera, pagina, vistas, sala y secciones */
+.lampara { display: none; }
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: var(--app-header-padding);
+  background: var(--app-header-background);
+  -webkit-backdrop-filter: saturate(170%) blur(14px);
+  backdrop-filter: saturate(170%) blur(14px);
+  color: var(--bib-sys-color-tinta);
+  border-bottom: 1px solid var(--bib-sys-color-linea);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 8px 24px rgba(78, 58, 40, 0.07);
+  position: sticky;
+  top: 0;
+  z-index: var(--bib-sys-z-header);
+}
+
+.page {
+  position: relative;
+  max-width: var(--bib-sys-layout-max-width);
+  margin: 0 auto;
+  padding: var(--page-padding);
+  z-index: 1;
+}
+
+.view:not(.is-hidden) .section { animation: aparecer 0.4s ease both; }
+.view:not(.is-hidden) .section:nth-child(2) { animation-delay: 0.06s; }
+.view:not(.is-hidden) .section:nth-child(3) { animation-delay: 0.12s; }
+
+.sala {
+  display: grid;
+  place-items: center;
+  padding: 6vh 0;
+}
+
+.section { margin-bottom: var(--section-gap); }
+
+.section__head {
+  border-bottom: 1px solid var(--bib-sys-color-linea);
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+}
+.section__head h2 {
+  font-family: var(--bib-sys-font-display);
+  font-size: var(--section-title-size);
+  margin: 0;
+  letter-spacing: 0.2px;
+  color: var(--section-title-color);
+}
+.section__head h2::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 0.9em;
+  margin-right: 12px;
+  border-radius: var(--bib-sys-radius-sm);
+  background: linear-gradient(var(--bib-sys-color-bronce), var(--bib-sys-color-roble));
+  vertical-align: -0.08em;
+}
+.section__sub {
+  margin: 4px 0 0;
+  color: var(--bib-sys-color-tinta-suave);
+  font-size: var(--bib-sys-font-size-md);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .app-header { padding: var(--app-header-padding-mobile); }
+  .page { padding: var(--page-padding-mobile); }
+  .section__head h2 { font-size: var(--section-title-size-mobile); }
+}

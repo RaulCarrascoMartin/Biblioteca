@@ -1,86 +1,123 @@
-(function () {
-  "use strict";
+/**
+ * Capa de datos: unico modulo que usa fetch.
+ * La sesion real es una cookie same-origin; en localStorage solo se guarda un flag.
+ */
 
-  var SESSION_KEY = "biblioteca_sesion";
+const CLAVE_SESION = "biblioteca_sesion";
 
-  var api = {
-    setToken: function (token) {
-      if (token) localStorage.setItem(SESSION_KEY, "1");
-      else localStorage.removeItem(SESSION_KEY);
-    },
-    getToken: function () {
-      return null;
-    },
-    tieneSesion: function () {
-      return !!localStorage.getItem(SESSION_KEY);
-    }
-  };
+export const EVENTO_SESION_CADUCADA = "sesion:caducada";
+export const EVENTO_CARGA = "api:carga";
 
-  function pedir(path, method, payload) {
-    var headers = { "Content-Type": "application/json" };
+const BASE_URL = "";
+const PREFIJO_AUTH = "/api/auth/";
 
-    var opts = { method: method || "GET", headers: headers, credentials: "same-origin" };
-    if (payload !== undefined) opts.body = JSON.stringify(payload);
+const RUTAS = {
+  login: "/api/auth/login",
+  register: "/api/auth/register",
+  logout: "/api/auth/logout",
+  miUsuario: "/api/usuarios/me",
+  misPrestamos: "/api/prestamos/mios",
+  prestamos: "/api/prestamos",
+  libros: "/api/libros",
+  devolver: (id) => `/api/prestamos/${encodeURIComponent(id)}/devolver`,
+  libro: (id) => `/api/libros/${encodeURIComponent(id)}`
+};
 
-    return fetch(path, opts).then(function (res) {
-      if (res.status === 401 && path.indexOf("/api/auth/") !== 0) {
-        api.setToken(null);
-        window.dispatchEvent(new CustomEvent("sesion:caducada"));
-        throw new Error("Sesi\u00f3n caducada. Vuelva a firmar la ficha.");
-      }
-      var ct = res.headers.get("content-type") || "";
-      var bodyPromise = ct.indexOf("application/json") !== -1 ? res.json().catch(function () { return null; }) : res.text().catch(function () { return null; });
-
-      return bodyPromise.then(function (body) {
-        if (!res.ok) {
-          var msg = body && typeof body === "object" && body.error ? body.error
-            : (body && typeof body === "string" ? body : null);
-          throw new Error(msg || "La solicitud fall\u00f3 (" + res.status + ")");
-        }
-        return body;
-      });
-    });
+export class ApiError extends Error {
+  constructor(mensaje, status = 0) {
+    super(mensaje);
+    this.name = "ApiError";
+    this.status = status;
   }
+}
 
-  api.login = function (email, password) {
-    return pedir("/api/auth/login", "POST", { email: email, password: password });
+let pendientes = 0;
+
+function cambiarPendientes(delta) {
+  pendientes += delta;
+  window.dispatchEvent(new CustomEvent(EVENTO_CARGA, { detail: { pendientes } }));
+}
+
+function leerFlag() {
+  try { return !!localStorage.getItem(CLAVE_SESION); } catch { return false; }
+}
+
+function escribirFlag(activa) {
+  try {
+    if (activa) localStorage.setItem(CLAVE_SESION, "1");
+    else localStorage.removeItem(CLAVE_SESION);
+  } catch { /* almacenamiento no disponible */ }
+}
+
+async function leerCuerpo(res) {
+  const tipo = res.headers.get("content-type") || "";
+  try {
+    if (tipo.includes("json")) return await res.json();
+    const texto = await res.text();
+    return texto === "" ? null : texto;
+  } catch {
+    return null;
+  }
+}
+
+/** Extrae un mensaje legible: {error}, ProblemDetail {detail,title}, texto plano o generico. */
+function mensajeDeError(cuerpo, status) {
+  if (cuerpo && typeof cuerpo === "object") {
+    const m = cuerpo.error || cuerpo.detail || cuerpo.title || cuerpo.message;
+    if (typeof m === "string" && m) return m;
+  } else if (typeof cuerpo === "string" && cuerpo.trim() && !cuerpo.trimStart().startsWith("<")) {
+    return cuerpo;
+  }
+  return `La solicitud falló (${status})`;
+}
+
+async function solicitar(ruta, { metodo = "GET", cuerpo } = {}) {
+  const opciones = {
+    method: metodo,
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin"
   };
+  if (cuerpo !== undefined) opciones.body = JSON.stringify(cuerpo);
 
-  api.register = function (nombre, email, password) {
-    return pedir("/api/auth/register", "POST", { nombre: nombre, email: email, password: password });
-  };
+  cambiarPendientes(1);
+  try {
+    let res;
+    try {
+      res = await fetch(BASE_URL + ruta, opciones);
+    } catch {
+      throw new ApiError("No se pudo conectar con el servidor. Compruebe su conexión.", 0);
+    }
 
-  api.miUsuario = function () {
-    return pedir("/api/usuarios/me");
-  };
+    if (res.status === 401 && !ruta.startsWith(PREFIJO_AUTH)) {
+      escribirFlag(false);
+      window.dispatchEvent(new CustomEvent(EVENTO_SESION_CADUCADA));
+      throw new ApiError("Sesión caducada. Vuelva a firmar la ficha.", 401);
+    }
 
-  api.misPrestamos = function () {
-    return pedir("/api/prestamos/mios");
-  };
+    const datos = await leerCuerpo(res);
+    if (!res.ok) throw new ApiError(mensajeDeError(datos, res.status), res.status);
+    return datos;
+  } finally {
+    cambiarPendientes(-1);
+  }
+}
 
-  api.libros = function () {
-    return pedir("/api/libros");
-  };
+export const api = {
+  tieneSesion: () => leerFlag(),
+  marcarSesion: (activa) => escribirFlag(!!activa),
 
-  api.solicitar = function (libroId) {
-    return pedir("/api/prestamos?libroId=" + encodeURIComponent(libroId), "POST");
-  };
+  login: (email, password) => solicitar(RUTAS.login, { metodo: "POST", cuerpo: { email, password } }),
+  register: (nombre, email, password) =>
+    solicitar(RUTAS.register, { metodo: "POST", cuerpo: { nombre, email, password } }),
+  logout: () => solicitar(RUTAS.logout, { metodo: "POST" }),
 
-  api.devolver = function (prestamoId) {
-    return pedir("/api/prestamos/" + encodeURIComponent(prestamoId) + "/devolver", "PUT");
-  };
-
-  api.logout = function () {
-    return pedir("/api/auth/logout", "POST");
-  };
-
-  api.crearLibro = function (dto) {
-    return pedir("/api/libros", "POST", dto);
-  };
-
-  api.eliminarLibro = function (libroId) {
-    return pedir("/api/libros/" + encodeURIComponent(libroId), "DELETE");
-  };
-
-  window.api = api;
-})();
+  miUsuario: () => solicitar(RUTAS.miUsuario),
+  misPrestamos: () => solicitar(RUTAS.misPrestamos),
+  libros: () => solicitar(RUTAS.libros),
+  solicitar: (libroId) =>
+    solicitar(`${RUTAS.prestamos}?libroId=${encodeURIComponent(libroId)}`, { metodo: "POST" }),
+  devolver: (prestamoId) => solicitar(RUTAS.devolver(prestamoId), { metodo: "PUT" }),
+  crearLibro: ({ titulo, autor, isbn, genero }) =>
+    solicitar(RUTAS.libros, { metodo: "POST", cuerpo: { titulo, autor, isbn, genero } }),
+  eliminarLibro: (libroId) => solicitar(RUTAS.libro(libroId), { metodo: "DELETE" })
+};

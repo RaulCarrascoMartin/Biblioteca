@@ -1,0 +1,158 @@
+/* Libro de lado (lomo) en la balda de "Mis prestamos".
+   Al pasar el cursor el libro "sale" y la tarjeta (plate + action) aparece al lado. */
+.book {
+  --book-w: var(--book-width);
+  --book-h: var(--book-height);
+  position: relative;
+  width: var(--book-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: none !important;
+  z-index: 1;
+}
+.book:nth-child(7n+1) { --book-w: 66px; --book-h: 218px; }
+.book:nth-child(7n+2) { --book-w: 78px; --book-h: 204px; }
+.book:nth-child(7n+3) { --book-w: 62px; --book-h: 226px; }
+.book:nth-child(7n+4) { --book-w: 84px; --book-h: 210px; }
+.book:nth-child(7n+5) { --book-w: 68px; --book-h: 222px; }
+.book:nth-child(7n+6) { --book-w: 74px; --book-h: 200px; }
+.book:nth-child(7n+7) { --book-w: 64px; --book-h: 216px; }
+.book:hover, .book:focus-within { z-index: 30; }
+
+/* cubierta en modo lomo */
+.book .cover {
+  width: 100%;
+  height: var(--book-h);
+  border-radius: 3px 3px 2px 2px;
+  transform-origin: 50% 100%;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.34) 0, rgba(255,255,255,0.13) 22%, rgba(255,255,255,0.03) 52%, rgba(0,0,0,0.12) 82%, rgba(0,0,0,0.36) 100%),
+    var(--tapa);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.20), 1px 3px 6px rgba(54,34,21,0.30), 0 8px 12px rgba(54,34,21,0.16);
+  transition: transform var(--bib-sys-duration-slow) var(--bib-sys-ease-out), box-shadow var(--bib-sys-duration-slow) ease, filter var(--bib-sys-duration-slow) ease;
+  z-index: 1 !important;
+}
+.book:hover .cover, .book:focus-within .cover {
+  transform: translateY(-14px) scale(1.06) !important;
+  filter: brightness(1.08);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.20), 5px 14px 16px rgba(54,34,21,0.34), 0 26px 30px rgba(54,34,21,0.24);
+}
+
+/* bandas doradas arriba y abajo del lomo */
+.book .cover__line {
+  inset: 14px 0;
+  border: 0;
+  border-top: 2px solid var(--bib-sys-color-hilo);
+  border-bottom: 2px solid var(--bib-sys-color-hilo);
+}
+.book .cover__line::before, .book .cover__line::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: rgba(255, 242, 214, 0.35);
+}
+.book .cover__line::before { top: 4px; }
+.book .cover__line::after { bottom: 4px; }
+.book .cover__spine { align-items: center; justify-content: center; padding: 26px 6px; gap: 10px; }
+.book .cover__title { font-size: var(--bib-sys-font-size-md); line-height: 1.2; letter-spacing: 0.6px; max-height: 100%; overflow: hidden; text-align: center; }
+.book .cover__num { font-size: 10px; letter-spacing: 1.5px; }
+
+/* marcapaginas: oculto en el modo lomo */
+.book__ribbon, .book__ribbon-text { display: none; }
+
+/* tarjeta al lado del libro (nunca encima de el) */
+.book__plate, .book__action {
+  position: absolute;
+  left: calc(100% + var(--book-card-gap));
+  right: auto;
+  margin: 0;
+  z-index: 10;
+  width: var(--book-card-width);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-10px);
+  transition: opacity 0.2s ease 0.06s, transform var(--bib-sys-duration-slow) var(--bib-sys-ease-out) 0.06s, visibility 0s linear 0.34s;
+}
+/* puente invisible para no perder el hover al cruzar el hueco entre libro y tarjeta */
+.book__plate::before, .book__action::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -14px;
+  width: 14px;
+}
+
+.book__plate {
+  bottom: 58px;
+  padding: 10px 12px 12px;
+  text-align: center;
+  font-size: var(--bib-sys-font-size-sm);
+  line-height: 1.3;
+  color: var(--bib-sys-color-tinta-suave);
+  border-radius: var(--bib-sys-radius-lg) var(--bib-sys-radius-lg) 0 0;
+  background: var(--book-plate-background);
+  border: 1px solid var(--bib-sys-color-linea);
+  border-bottom: 0;
+  box-shadow: var(--book-plate-shadow);
+}
+.book__plate-title { display: none; } /* el titulo ya esta en el lomo */
+.book__plate-dates {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--bib-sys-font-mono);
+  font-style: italic;
+  font-size: var(--bib-sys-font-size-xs);
+  line-height: 1.5;
+}
+
+.book__action {
+  bottom: 14px;
+  min-height: var(--book-action-min-height);
+  padding: 9px 16px;
+  font-family: var(--bib-sys-font-body);
+  font-size: var(--bib-sys-font-size-sm);
+  font-weight: 600;
+  color: var(--book-action-color);
+  background: var(--book-action-background);
+  border: none;
+  border-radius: 0 0 var(--bib-sys-radius-lg) var(--bib-sys-radius-lg);
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 4px 10px rgba(78, 58, 40, 0.28);
+}
+.book__action:hover { filter: brightness(1.08); }
+.book__action:hover:not(:disabled) { filter: brightness(1.07); }
+.book__action:disabled { cursor: wait; }
+
+.book:hover .book__plate, .book:focus-within .book__plate,
+.book:hover .book__action, .book:focus-within .book__action {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition-delay: 0s;
+}
+
+/* los libros del lado derecho de la balda abren la tarjeta hacia la izquierda */
+.book:nth-child(n+5) .book__plate, .book:nth-child(n+5) .book__action {
+  left: auto;
+  right: calc(100% + var(--book-card-gap));
+  transform: translateX(10px);
+}
+.book:nth-child(n+5) .book__plate::before, .book:nth-child(n+5) .book__action::before { left: auto; right: -14px; }
+.book:nth-child(n+5):hover .book__plate, .book:nth-child(n+5):focus-within .book__plate,
+.book:nth-child(n+5):hover .book__action, .book:nth-child(n+5):focus-within .book__action { transform: none; }
+
+@media (max-width: 720px) {
+  .book:nth-child(n+3) .book__plate, .book:nth-child(n+3) .book__action {
+    left: auto;
+    right: calc(100% + var(--book-card-gap));
+    transform: translateX(10px);
+  }
+  .book:nth-child(n+3) .book__plate::before, .book:nth-child(n+3) .book__action::before { left: auto; right: -14px; }
+  .book:nth-child(n+3):hover .book__plate, .book:nth-child(n+3):focus-within .book__plate,
+  .book:nth-child(n+3):hover .book__action, .book:nth-child(n+3):focus-within .book__action { transform: none; }
+}

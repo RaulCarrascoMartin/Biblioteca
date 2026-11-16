@@ -3,13 +3,10 @@ package com.example.demo.prestamo.domain;
 import lombok.RequiredArgsConstructor;
 
 
-import com.example.demo.prestamo.domain.PrestamoResponseDTO;
 import com.example.demo.libro.domain.Libro;
-import com.example.demo.prestamo.domain.Prestamo;
 import com.example.demo.usuario.domain.Usuario;
 import com.example.demo.shared.NotFoundException;
 import com.example.demo.libro.domain.LibroRepository;
-import com.example.demo.prestamo.domain.PrestamoRepository;
 import com.example.demo.usuario.domain.UsuarioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,18 +24,22 @@ public class PrestamoService {
 
     private final UsuarioRepository usuarioRepository;
 
-    public List<Prestamo> obtenerTodos(){
-        return prestamoRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<PrestamoResponseDTO> obtenerTodos(){
+        return prestamoRepository.findAll().stream().map(PrestamoResponseDTO::new).toList();
     }
 
-    public Optional<Prestamo> obtenerPorId(Long id){
-        return prestamoRepository.findById(id);
+    @Transactional(readOnly = true)
+    public Optional<PrestamoResponseDTO> obtenerPorId(Long id){
+        return prestamoRepository.findById(id).map(PrestamoResponseDTO::new);
     }
 
-    public List<Prestamo> obtenerPorEmail(String emailUsuario){
+    @Transactional(readOnly = true)
+    public List<PrestamoResponseDTO> obtenerPorEmail(String emailUsuario){
         return usuarioRepository.findByEmail(emailUsuario)
                 .map(usuario -> prestamoRepository.findByUsuarioId(usuario.getId()))
-                .orElseGet(List::of);
+                .orElseGet(List::of)
+                .stream().map(PrestamoResponseDTO::new).toList();
     }
 
     @Transactional
@@ -50,7 +51,7 @@ public class PrestamoService {
                 .orElseThrow(() -> new NotFoundException("El usuario no existe"));
 
         if (!libro.isDisponible()){
-            throw new IllegalStateException("El libro no se encuentra disponible en estos momentos");
+            throw new LibroNoDisponibleException();
         }
 
         libro.setDisponible(false);
@@ -73,7 +74,7 @@ public class PrestamoService {
                 .orElseThrow(() -> new NotFoundException("Libro no encontrado"));
 
         if (prestamo.getFechaDevolucion() != null) {
-            throw new IllegalStateException("El préstamo ya fue devuelto");
+            throw new PrestamoYaDevueltoException();
         }
 
         prestamo.setFechaDevolucion(LocalDate.now());

@@ -1,0 +1,42 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.field__label {
+  font-size: var(--bib-sys-font-size-sm);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--bib-sys-color-tinta-suave);
+}
+
+.field__input {
+  font-family: var(--bib-sys-font-body);
+  font-size: var(--bib-sys-font-size-base);
+  color: var(--bib-sys-color-tinta);
+  background: var(--field-background);
+  border: 1px solid var(--bib-sys-color-borde-campo);
+  border-radius: var(--field-radius);
+  padding: 10px 12px;
+  min-height: var(--field-min-height);
+  outline: none;
+  transition: border-color var(--bib-sys-duration-base) ease, box-shadow var(--bib-sys-duration-base) ease, background-color var(--bib-sys-duration-base) ease;
+}
+.field__input:hover { border-color: var(--bib-sys-color-borde-campo-hover); }
+.field__input:focus {
+  border-color: var(--bib-sys-color-acento);
+  box-shadow: var(--bib-sys-ring);
+}
+.field__input::placeholder { color: var(--field-placeholder-color); }
+
+select.field__input {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236b4f38' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}

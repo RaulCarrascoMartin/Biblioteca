@@ -1,7 +1,5 @@
 package com.example.demo.libro.domain;
 
-import com.example.demo.libro.domain.Libro;
-
 import java.util.List;
 import java.util.Optional;
 

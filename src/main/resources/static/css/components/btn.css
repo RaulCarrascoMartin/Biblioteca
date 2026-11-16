@@ -1,0 +1,53 @@
+/* Boton base + variantes (--seal, --ghost, --danger) */
+.btn {
+  font-family: var(--btn-font-family);
+  cursor: pointer;
+}
+
+.btn--ghost {
+  font-size: 13.5px;
+  color: var(--btn-ghost-color);
+  background: transparent;
+  border: 1px solid var(--bib-sys-color-linea);
+  border-radius: var(--btn-radius);
+  padding: 7px 16px;
+  transition: background var(--bib-sys-duration-base) ease, border-color var(--bib-sys-duration-base) ease, color var(--bib-sys-duration-base) ease;
+}
+.btn--ghost:hover {
+  border-color: var(--btn-ghost-accent);
+  color: var(--btn-ghost-accent);
+  background: rgba(59, 90, 62, 0.07);
+}
+
+.btn--seal {
+  width: 100%;
+  font-family: var(--bib-sys-font-display);
+  font-weight: 700;
+  font-size: var(--bib-sys-font-size-lg);
+  letter-spacing: 2px;
+  color: var(--btn-seal-color);
+  background: var(--btn-seal-background);
+  border: none;
+  border-radius: var(--btn-seal-radius);
+  padding: 13px;
+  box-shadow: var(--btn-seal-shadow);
+  transition: transform var(--bib-sys-duration-fast) ease, box-shadow var(--bib-sys-duration-fast) ease, filter var(--bib-sys-duration-fast) ease;
+}
+.btn--seal:hover { filter: brightness(1.06); }
+.btn--seal:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--bib-sys-color-nuez-oscura); }
+.btn--seal:disabled { opacity: 0.6; cursor: wait; }
+.btn--seal:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+.btn--seal:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 3px 8px rgba(47, 72, 51, 0.3); }
+
+.btn--danger {
+  font-size: var(--bib-sys-font-size-sm);
+  color: var(--btn-danger-color);
+  background: transparent;
+  border: 1px solid var(--btn-danger-border);
+  border-radius: var(--btn-radius);
+  padding: 5px 14px;
+  min-height: 34px;
+  transition: transform var(--bib-sys-duration-fast) ease, filter var(--bib-sys-duration-fast) ease, background var(--bib-sys-duration-fast) ease;
+}
+.btn--danger:hover { background: var(--btn-danger-hover-background); }
+.btn--danger:disabled { opacity: 0.5; cursor: wait; }

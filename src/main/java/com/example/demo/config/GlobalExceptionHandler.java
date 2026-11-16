@@ -1,7 +1,14 @@
 package com.example.demo.config;
 
 import com.example.demo.auth.domain.InvalidCredentialsException;
+import com.example.demo.libro.domain.IsbnDuplicadoException;
+import com.example.demo.libro.domain.LibroConPrestamosException;
+import com.example.demo.prestamo.domain.LibroNoDisponibleException;
+import com.example.demo.prestamo.domain.PrestamoYaDevueltoException;
 import com.example.demo.shared.NotFoundException;
+import com.example.demo.usuario.domain.AutoEliminacionException;
+import com.example.demo.usuario.domain.EmailYaRegistradoException;
+import com.example.demo.usuario.domain.UsuarioConPrestamosException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -66,6 +73,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleMalformedBody(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", "Cuerpo de la petición inválido"));
+    }
+
+    /** El cuerpo es texto plano, como antes de extraer la excepción. */
+    @ExceptionHandler(IsbnDuplicadoException.class)
+    public ResponseEntity<String> handleIsbnDuplicado(IsbnDuplicadoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler({LibroConPrestamosException.class, UsuarioConPrestamosException.class,
+            LibroNoDisponibleException.class, PrestamoYaDevueltoException.class,
+            AutoEliminacionException.class})
+    public ResponseEntity<Map<String, String>> handleConflictoDeNegocio(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmailYaRegistradoException.class)
+    public ResponseEntity<Map<String, String>> handleEmailYaRegistrado(EmailYaRegistradoException ex) {
+        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

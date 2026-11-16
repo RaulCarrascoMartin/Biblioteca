@@ -50,7 +50,7 @@ class PrestamoServiceTest extends BaseIntegrationTest {
         Libro libro = crearLibro("Libro PS2");
 
         prestamoService.crearPrestamo(libro.getId(), ana.getEmail());
-        assertThrows(IllegalStateException.class,
+        assertThrows(LibroNoDisponibleException.class,
                 () -> prestamoService.crearPrestamo(libro.getId(), ana.getEmail()));
     }
 
@@ -98,7 +98,7 @@ class PrestamoServiceTest extends BaseIntegrationTest {
 
         var deAna = prestamoService.obtenerPorEmail(ana.getEmail());
         assertEquals(1, deAna.size());
-        assertEquals(libroA.getId(), deAna.get(0).getLibro().getId());
+        assertEquals(libroA.getId(), deAna.get(0).libro().id());
 
         assertEquals(1, prestamoService.obtenerPorEmail(bob.getEmail()).size());
         assertTrue(prestamoService.obtenerPorEmail("desconocido@test.es").isEmpty());

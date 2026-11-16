@@ -1,0 +1,13 @@
+.stamp {
+  font-family: var(--bib-sys-font-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  padding: 5px 12px;
+  border: 2px solid currentColor;
+  border-radius: var(--stamp-radius);
+  transform: rotate(-2deg);
+  max-width: 100%;
+  text-align: center;
+}
+.stamp--ok { display: inline-block; color: var(--stamp-ok-color); }
+.stamp--err { display: inline-block; color: var(--stamp-err-color); }

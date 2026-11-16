@@ -1,0 +1,129 @@
+/* Ticket del historial de devoluciones */
+.ticket {
+  position: relative;
+  width: min(var(--ticket-width), 100%);
+  margin: 0 auto 18px;
+  background: var(--ticket-paper);
+  border: 1px solid var(--bib-sys-color-linea);
+  box-shadow: var(--bib-sys-shadow-soft);
+  padding: var(--ticket-padding);
+  border-radius: var(--ticket-radius);
+}
+.ticket::before, .ticket::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 16px;
+  background:
+    linear-gradient(-45deg, transparent 8px, var(--ticket-paper) 0) 0 0,
+    linear-gradient(45deg, transparent 8px, var(--ticket-paper) 0) 8px 0,
+    linear-gradient(-45deg, var(--ticket-paper) 8px, transparent 0) 0 16px,
+    linear-gradient(45deg, var(--ticket-paper) 8px, transparent 0) 8px 16px;
+  background-size: 16px 32px;
+  pointer-events: none;
+}
+.ticket::before { top: -16px; }
+.ticket::after { bottom: -16px; transform: scaleY(-1); }
+
+.ticket__head { text-align: center; }
+.ticket__company {
+  display: block;
+  font-family: var(--bib-sys-font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: var(--bib-sys-color-tinta);
+}
+.ticket__estab {
+  display: block;
+  font-family: var(--bib-sys-font-mono);
+  font-size: var(--bib-sys-font-size-xs);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--bib-sys-color-tinta-suave);
+  margin-top: 4px;
+}
+.ticket__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px dashed var(--ticket-dash);
+  font-family: var(--bib-sys-font-mono);
+  font-size: 11.5px;
+  color: var(--bib-sys-color-tinta-suave);
+}
+.ticket__meta b { color: var(--bib-sys-color-tinta); font-weight: 400; }
+
+.ticket__lines { list-style: none; margin: 0; padding: 4px 0; }
+.ticket__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--ticket-dash-soft);
+}
+.ticket__line:last-child { border-bottom: none; }
+.ticket__line--empty {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: var(--bib-sys-font-mono);
+  font-style: italic;
+  color: var(--bib-sys-color-tinta-suave);
+}
+
+.ticket__info { min-width: 0; }
+.ticket__info b {
+  display: block;
+  font-family: var(--bib-sys-font-body);
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--bib-sys-color-tinta);
+}
+.ticket__info span { font-size: var(--bib-sys-font-size-sm); color: var(--bib-sys-color-tinta-suave); font-style: italic; }
+
+.ticket__dates {
+  flex: none;
+  text-align: right;
+  font-family: var(--bib-sys-font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--bib-sys-color-tinta-suave);
+  white-space: nowrap;
+}
+.ticket__dates span { display: block; }
+.ticket__art { display: block; color: var(--ticket-accent); letter-spacing: 1px; }
+
+.ticket__totals {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 2px dashed var(--ticket-dash);
+  font-family: var(--bib-sys-font-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--bib-sys-color-tinta);
+}
+.ticket__totals b { font-size: var(--bib-sys-font-size-base); color: var(--bib-sys-color-acento); }
+
+.ticket__foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(107, 79, 56, 0.3);
+  text-align: center;
+  font-family: var(--bib-sys-font-mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--bib-sys-color-verde-oscuro);
+}
+
+@media (max-width: 720px) {
+  .ticket { padding: var(--ticket-padding-mobile); }
+  .ticket__line { flex-wrap: wrap; gap: 6px 14px; }
+}

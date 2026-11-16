@@ -1,0 +1,52 @@
+/* Cubierta / lomo. Las variantes por contexto estan en book.css y catalog-item.css */
+.cover {
+  position: relative;
+  width: var(--cover-width);
+  height: var(--cover-height);
+  border-radius: var(--cover-radius);
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.28) 0 5px, rgba(0,0,0,0.02) 5px 30px, rgba(0,0,0,0.06) 80%, rgba(0,0,0,0.3) 100%),
+    var(--tapa);
+  box-shadow: var(--cover-shadow);
+  cursor: default;
+  transition: transform var(--bib-sys-duration-fast) ease;
+}
+.cover:hover { transform: translateY(-4px) rotate(0deg) !important; z-index: 5; }
+
+.cover__line {
+  position: absolute;
+  inset: 7px 7px 7px 11px;
+  border: 1px solid var(--bib-sys-color-hilo);
+  pointer-events: none;
+}
+
+.cover__spine {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 26px 20px 14px;
+  gap: 8px;
+}
+
+.cover__title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--bib-sys-font-display);
+  font-weight: 700;
+  font-size: var(--bib-sys-font-size-base);
+  line-height: 1.15;
+  color: var(--cover-title-color);
+  letter-spacing: 1px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.cover__num {
+  font-family: var(--bib-sys-font-mono);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: var(--bib-sys-font-size-xs);
+  color: var(--cover-num-color);
+  letter-spacing: 2px;
+}

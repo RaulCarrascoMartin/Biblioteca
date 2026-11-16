@@ -1,0 +1,10 @@
+.status {
+  font-family: var(--bib-sys-font-mono);
+  font-size: var(--bib-sys-font-size-xs);
+  letter-spacing: 0.6px;
+  border-radius: var(--bib-sys-radius-pill);
+  padding: 3px 10px;
+  font-weight: 600;
+}
+.status--ok { color: var(--status-ok-color); background: var(--status-ok-background); }
+.status--lent { color: var(--status-lent-color); background: var(--status-lent-background); }

@@ -25,16 +25,12 @@ public class UsuarioController {
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public List<UsuarioResponseDTO> obtenerTodos() {
-        return usuarioService.obtenerTodos()
-                .stream()
-                .map(UsuarioResponseDTO::new)
-                .toList();
+        return usuarioService.obtenerTodos();
     }
 
     @GetMapping("/me")
     public ResponseEntity<UsuarioResponseDTO> obtenerActual(@AuthenticationPrincipal UserDetails principal) {
         return usuarioService.obtenerPorEmail(principal.getUsername())
-                .map(UsuarioResponseDTO::new)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -43,7 +39,6 @@ public class UsuarioController {
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioResponseDTO> obtenerPorId(@PathVariable Long id) {
         return usuarioService.obtenerPorId(id)
-                .map(UsuarioResponseDTO::new)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -52,7 +47,7 @@ public class UsuarioController {
     @PutMapping("/{id}")
     public ResponseEntity<UsuarioResponseDTO> actualizar(@PathVariable Long id, @Valid @RequestBody UsuarioUpdateDTO dto) {
         return usuarioService.actualizar(id, dto)
-                .map(u -> ResponseEntity.ok(new UsuarioResponseDTO(u)))
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -67,10 +62,7 @@ public class UsuarioController {
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id, @AuthenticationPrincipal UserDetails principal) {
-        if (usuarioService.obtenerPorEmail(principal.getUsername()).map(u -> u.getId().equals(id)).orElse(false)) {
-            throw new IllegalStateException("No puede eliminar su propia cuenta");
-        }
-        usuarioService.eliminar(id);
+        usuarioService.eliminar(id, principal.getUsername());
         return ResponseEntity.noContent().build();
     }
 }

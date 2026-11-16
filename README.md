@@ -148,6 +148,9 @@ Contiene solo lo que necesitan varios módulos y no pertenece a ninguno. **No de
 | Clase | Responsabilidad |
 |---|---|
 | `NotFoundException` | Recurso inexistente → 404. |
+
+Las reglas de negocio violadas se expresan con excepciones propias de cada módulo (`IsbnDuplicadoException`, `LibroConPrestamosException`, `LibroNoDisponibleException`, `PrestamoYaDevueltoException`, `AutoEliminacionException`, `UsuarioConPrestamosException` → 409; `EmailYaRegistradoException` → 400) que `GlobalExceptionHandler` traduce a HTTP.
+
 | `PasswordHasher` | Puerto: «hashear una contraseña». Lo usan `auth` (registro) y `usuario` (cambio de clave, administrador inicial). Implementado en `auth/security`. |
 
 ### 3.2 `libro/` — catálogo
@@ -155,10 +158,10 @@ Contiene solo lo que necesitan varios módulos y no pertenece a ninguno. **No de
 |---|---|
 | `Libro`, `Genero` | Entidad JPA y enumeración de géneros (guardada como `STRING`, no ordinal, para que reordenar no corrompa datos). `equals`/`hashCode` solo por `id`. |
 | `LibroRepository` | Puerto con solo las operaciones que el dominio necesita. `findByIdWithLock` documenta que debe usarse dentro de una transacción: el bloqueo pesimista forma parte del contrato. |
-| `LibroService` | Consulta y persistencia del catálogo. Impide retirar un libro «en uso» consultando los `LibroEnUsoChecker` registrados. |
+| `LibroService` | Consulta, alta y edición del catálogo (valida ISBN único y devuelve `LibroResponseDTO`). Impide retirar un libro «en uso» consultando los `LibroEnUsoChecker` registrados. |
 | `LibroEnUsoChecker` | SPI: otros módulos declaran si un libro les impide ser retirado. |
 | `LibroDTO`, `LibroResponseDTO` | Entrada (validada) y salida del API. |
-| `web/LibroController` | CRUD. Lectura para cualquier autenticado; crear/editar/borrar solo `ADMIN` (`@PreAuthorize`). 409 si el ISBN existe. |
+| `web/LibroController` | CRUD, delegando en el servicio. Lectura para cualquier autenticado; crear/editar/borrar solo `ADMIN` (`@PreAuthorize`). 409 si el ISBN existe. |
 | `persistence/*` | `JpaLibroRepository` (Spring Data, con `@Lock(PESSIMISTIC_WRITE)`) y `LibroRepositoryAdapter` (implementa el puerto). |
 | `seed/LibroSeeder` | `CommandLineRunner` condicionado a `app.seed-books=true`; carga idempotente por ISBN. |
 
@@ -167,7 +170,7 @@ Contiene solo lo que necesitan varios módulos y no pertenece a ninguno. **No de
 |---|---|
 | `Usuario` | Entidad. `rol` es un `String` (`USER`/`ADMIN`) por simplicidad. `tokenVersion` permite invalidar todos los tokens (ver [Seguridad](#4-seguridad)). |
 | `UsuarioRepository` | Puerto de acceso a datos. |
-| `UsuarioService` | Consulta, actualización (normaliza el email; si cambia la contraseña **incrementa `tokenVersion`**), revocación de sesiones y borrado (bloqueado si algún `UsuarioEnUsoChecker` lo indica). |
+| `UsuarioService` | Consulta (devuelve `UsuarioResponseDTO`), actualización (normaliza el email; si cambia la contraseña **incrementa `tokenVersion`**), revocación de sesiones y borrado (bloqueado si es el propio solicitante o si algún `UsuarioEnUsoChecker` lo indica). |
 | `UsuarioEnUsoChecker` | SPI análogo al de `libro`. |
 | `UsuarioDTO`, `UsuarioUpdateDTO`, `UsuarioResponseDTO` | Contratos. `UsuarioDTO` no tiene campo `rol`: defensa contra *mass assignment*. La respuesta **nunca incluye la contraseña**. La contraseña admite máximo 72 caracteres (límite de bcrypt). |
 | `web/UsuarioController` | Perfil propio (`/me`), consulta/edición (admin o dueño), borrado (solo admin, nunca el propio) y revocación de sesiones. |
@@ -298,11 +301,14 @@ Ubicación: `src/main/resources/static`. Spring Boot lo sirve directamente, sin 
 
 | Archivo | Responsabilidad |
 |---|---|
-| `index.html` | Estructura de la página: vista de acceso, vista de biblioteca (préstamos, catálogo, historial, gestión admin) y el contenedor del *toast*. |
-| `js/api.js` | Cliente HTTP (`fetch` con `credentials: same-origin`). Gestiona el «sesión caducada» ante un 401 (excepto en las rutas de autenticación, para no mostrar «sesión caducada» en un login fallido). |
-| `js/app.js` | Lógica de interfaz: cambio de vistas, formularios, pintado de estanterías, catálogo, historial y administración. Escapa todo texto del servidor antes de insertarlo en el DOM (`esc`) para evitar XSS. |
-| `js/covers.js` | Genera las cubiertas de los libros: color según el género (o por hash del ISBN/título si no tiene), lomo con título vertical y formato de fechas. |
-| `css/styles.css` | Estilos. Está organizado en capas: base temática (tipografías, estantería, ticket), y una «capa estética» posterior que refina fondo, cabecera, formularios y botones. |
+| `index.html` | HTML semántico y accesible (skip-link, landmarks, tabs ARIA, `aria-live`/`aria-busy`). Carga los CSS y `js/main.js` como módulo. |
+| `js/api.js` | **Único** sitio con `fetch`: servicio HTTP con `ApiError`, normalización de errores, contador de peticiones (evento `api:carga`) y evento `sesion:caducada` ante un 401 (salvo en `/api/auth/`). |
+| `js/state.js` | Estado único (usuario, préstamos, libros, vista, carga) con suscripción y derivados memoizados (`activos`, `devueltos`, `disponibles`, `esAdmin`). |
+| `js/views/*.js` | Render: estado a HTML por bloque (cabecera, acceso, estantería, catálogo, historial, admin). |
+| `js/acciones.js`, `js/events.js` | Orquestación contra la API y delegación de eventos (`data-solicitar`, `data-devolver`, `data-retirar`, `data-tab`). |
+| `js/dom.js`, `js/covers.js` | Helpers (`esc` anti-XSS, toast) y generación de cubiertas/lomos y fechas. |
+| `js/main.js` | Punto de entrada: suscribe el render y arranca. |
+| `css/tokens.css`, `base.css`, `layout.css`, `components/*.css` | Tokens como custom properties (`--bib-sys-*` de sistema y por componente), globales, layout y un fichero por bloque BEM (`bloque__elemento--modificador`). |
 
 **Decisiones de diseño visual**
 - **«Mis préstamos» se muestra como una estantería con los libros de lado (lomos)**. Al pasar el cursor, el libro «sale» de la balda (sube y crece con más sombra) y aparece a su lado una tarjeta con autor, género, fecha y el botón *Devolver*; nunca se superpone al libro. Funciona también con teclado (`:focus-within`).
@@ -351,7 +357,7 @@ Fallan el build si alguien rompe las fronteras del monolito modular:
 - **`@Service` y `@Transactional` en `domain`.** Son anotaciones de Spring, pero ligeras; evitan crear una capa de configuración de beans solo para registrar los servicios. El límite se mantuvo en lo que importa: ningún servicio importa tipos de persistencia ni de seguridad (lo verifican los tests de arquitectura).
 - **`prestamo` comparte entidades con `libro` y `usuario`.** `Prestamo` mantiene `@ManyToOne` hacia `Libro` y `Usuario` (y `AuthzHelper` navega `prestamo.getUsuario()`). Un monolito modular estricto referenciaría por id para poder separar esquemas; se mantuvo la relación JPA por simplicidad y porque el bloqueo pesimista y las consultas se benefician de ella. Es la costura a deshacer si un módulo se extrae.
 - **Todos los módulos comparten una sola base de datos y un solo esquema**, sin esquemas separados por módulo.
-- **Los controladores construyen entidades a partir de DTO** en algunos casos (`LibroController`), en lugar de delegarlo del todo al servicio. Es una simplificación aceptable aquí; moverlo al servicio sería el siguiente paso natural.
+- **Los servicios devuelven DTO de respuesta**, no entidades: los controladores no construyen entidades ni mapean; las lecturas son `@Transactional(readOnly = true)`.
 
 **Limitaciones conocidas**
 - **Estado en memoria en un solo nodo:** el rate limiter y la lista de tokens revocados viven en memoria de la JVM. Con varias instancias o tras un reinicio no se comparten. La revocación por `tokenVersion` sí es robusta porque está en base de datos. Para un despliegue en varios nodos habría que mover ambos a Redis o a la base de datos.

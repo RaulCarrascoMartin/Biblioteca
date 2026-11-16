@@ -1,0 +1,74 @@
+/* Reset, globales y utilidades */
+* { box-sizing: border-box; }
+
+html {
+  margin: 0;
+  padding: 0;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: var(--bib-sys-font-body);
+  color: var(--bib-sys-color-tinta);
+  background:
+    radial-gradient(900px 420px at 85% -80px, rgba(207, 154, 82, 0.16), transparent 65%),
+    radial-gradient(700px 400px at 0% 0%, rgba(59, 90, 62, 0.07), transparent 60%),
+    linear-gradient(#f9f4ea, #f4ecdf);
+  background-attachment: fixed;
+}
+
+::selection { background: rgba(207, 154, 82, 0.35); }
+
+:where(button, a, input, select):focus-visible {
+  outline: none;
+  box-shadow: var(--bib-sys-ring);
+}
+
+/* Utilidades */
+.u-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  overflow: hidden;
+}
+
+/* Estado global */
+.is-hidden { display: none !important; }
+
+/* Animaciones compartidas */
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Accesibilidad: skip-link visible al recibir foco y destino sin contorno */
+.skip-link:focus {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  height: auto;
+  clip: auto;
+  overflow: visible;
+  padding: 8px 14px;
+  background: var(--bib-sys-color-crema, #fff);
+  color: var(--bib-sys-color-tinta, #000);
+  border: 2px solid var(--bib-sys-color-bronce, #c90);
+  border-radius: var(--bib-sys-radius-sm, 4px);
+  z-index: 1000;
+}
+main:focus { outline: none; }

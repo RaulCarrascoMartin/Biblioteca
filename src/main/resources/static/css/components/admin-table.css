@@ -1,0 +1,31 @@
+.admin-table__wrap {
+  border: 1px solid var(--bib-sys-color-linea);
+  border-radius: var(--admin-form-radius);
+  overflow-x: auto;
+  background: var(--bib-sys-color-crema-alta);
+  box-shadow: var(--bib-sys-shadow-soft);
+}
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: var(--bib-sys-font-size-md); }
+.admin-table th {
+  font-family: var(--bib-sys-font-mono);
+  font-size: 11.5px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--bib-sys-color-crema-alta);
+  background: var(--admin-table-head-background);
+  text-align: left;
+  padding: 10px 14px;
+  position: sticky;
+  top: 0;
+}
+.admin-table td {
+  padding: 11px 14px;
+  border-bottom: 1px dashed var(--bib-sys-color-linea);
+  vertical-align: middle;
+}
+.admin-table tbody tr { transition: background var(--bib-sys-duration-fast) ease; }
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:nth-child(even) { background: var(--admin-table-stripe); }
+.admin-table tbody tr:hover { background: var(--admin-table-hover); }
+.admin-table b { font-weight: 600; }

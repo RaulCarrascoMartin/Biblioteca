@@ -29,25 +29,18 @@ public class PrestamoController {
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public List<PrestamoResponseDTO> obtenerTodos(){
-        return prestamoService.obtenerTodos()
-                .stream()
-                .map(PrestamoResponseDTO::new)
-                .toList();
+        return prestamoService.obtenerTodos();
     }
 
     @GetMapping("/mios")
     public List<PrestamoResponseDTO> obtenerMios(@AuthenticationPrincipal UserDetails principal){
-        return prestamoService.obtenerPorEmail(principal.getUsername())
-                .stream()
-                .map(PrestamoResponseDTO::new)
-                .toList();
+        return prestamoService.obtenerPorEmail(principal.getUsername());
     }
 
     @PreAuthorize("hasRole('ADMIN') or @prestamoAuthz.esDueño(#id, authentication.name)")
     @GetMapping("/{id}")
     public ResponseEntity<PrestamoResponseDTO> obtenerPorId(@PathVariable Long id){
         return prestamoService.obtenerPorId(id)
-                .map(PrestamoResponseDTO::new)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

@@ -1,0 +1,27 @@
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  align-items: end;
+  background: var(--admin-form-background);
+  border: 1px solid var(--bib-sys-color-linea);
+  border-top: 3px solid var(--bib-sys-color-acento);
+  border-radius: var(--admin-form-radius);
+  box-shadow: var(--bib-sys-shadow-soft);
+  padding: var(--admin-form-padding);
+  margin-bottom: 26px;
+}
+.admin-form .btn--seal {
+  margin-top: 2px;
+  min-width: 0;
+  width: 100%;
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+@media (min-width: 721px) {
+  .admin-form .btn--seal { width: auto; min-width: 220px; }
+}
+@media (max-width: 720px) {
+  .admin-form { padding: var(--admin-form-padding-mobile); }
+}

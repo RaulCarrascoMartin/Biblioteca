@@ -1,0 +1,24 @@
+/* Mensajes de estado: carga y vacios */
+.state-msg {
+  color: var(--state-msg-color);
+  font-style: italic;
+}
+
+.state-msg--loading {
+  padding: 10px 4px;
+  animation: pulso 1.4s ease-in-out infinite;
+}
+
+.state-msg--shelf-empty,
+.state-msg--grid-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 34px 10px;
+  border: 1px dashed var(--state-msg-border);
+  border-radius: var(--bib-sys-radius-xl);
+  background: var(--state-msg-background);
+}
+
+.state-msg--table-empty { padding: 16px; text-align: center; }
+
+@keyframes pulso { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }

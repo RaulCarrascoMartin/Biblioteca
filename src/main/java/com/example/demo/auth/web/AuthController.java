@@ -2,7 +2,6 @@ package com.example.demo.auth.web;
 
 import com.example.demo.auth.domain.LoginDTO;
 import com.example.demo.usuario.domain.UsuarioDTO;
-import com.example.demo.usuario.domain.UsuarioResponseDTO;
 import com.example.demo.auth.domain.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +28,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody UsuarioDTO dto) {
         return authService.registrar(dto)
-                .<ResponseEntity<?>>map(u -> ResponseEntity.ok(new UsuarioResponseDTO(u)))
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.ok().build());
     }
 

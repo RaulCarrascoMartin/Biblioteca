@@ -1,0 +1,192 @@
+/* =====================================================================
+   Tokens
+   1) Tokens de sistema  --bib-sys-*      (globales, los usan todos los componentes)
+   2) Tokens de diseno   --<bloque>-*     (publicos de cada componente; su valor por
+      defecto es un token de sistema o un valor propio del componente)
+   ===================================================================== */
+:root {
+  /* ---------- Sistema: colores ---------- */
+  --bib-sys-color-nuez: #6b4f38;
+  --bib-sys-color-nuez-oscura: #4e3a28;
+  --bib-sys-color-roble: #96704a;
+  --bib-sys-color-roble-claro: #a37a50;
+  --bib-sys-color-crema: #f7f1e7;
+  --bib-sys-color-crema-alta: #fcf8f1;
+  --bib-sys-color-verde: #3b5a3e;
+  --bib-sys-color-verde-oscuro: #2f4833;
+  --bib-sys-color-bronce: #cf9a52;
+  --bib-sys-color-oro: #dcb877;
+  --bib-sys-color-tinta: #3a2f26;
+  --bib-sys-color-tinta-suave: #8a7460;
+  --bib-sys-color-rojo: #8a2f24;
+  --bib-sys-color-rojo-claro: #c05a43;
+  --bib-sys-color-papel: #fffdf7;
+  --bib-sys-color-blanco-calido: #fffdf8;
+  --bib-sys-color-campo: #fffdf9;
+  --bib-sys-color-acento: var(--bib-sys-color-verde);
+  --bib-sys-color-linea: rgba(107, 79, 56, 0.14);
+  --bib-sys-color-borde-campo: rgba(107, 79, 56, 0.24);
+  --bib-sys-color-borde-campo-hover: rgba(107, 79, 56, 0.5);
+  --bib-sys-color-hilo: rgba(255, 242, 214, 0.55);
+
+  /* ---------- Sistema: tipografia ---------- */
+  --bib-sys-font-display: "Playfair Display", Georgia, serif;
+  --bib-sys-font-body: "Lora", Georgia, serif;
+  --bib-sys-font-mono: "Special Elite", "Courier New", monospace;
+  --bib-sys-font-size-xs: 11px;
+  --bib-sys-font-size-sm: 12.5px;
+  --bib-sys-font-size-md: 14px;
+  --bib-sys-font-size-base: 15px;
+  --bib-sys-font-size-lg: 16px;
+
+  /* ---------- Sistema: formas, sombras, movimiento, capas ---------- */
+  --bib-sys-radius-sm: 3px;
+  --bib-sys-radius-md: 4px;
+  --bib-sys-radius-lg: 10px;
+  --bib-sys-radius-xl: 12px;
+  --bib-sys-radius-2xl: 18px;
+  --bib-sys-radius-pill: 999px;
+  --bib-sys-shadow-soft: 0 1px 2px rgba(78, 58, 40, 0.06), 0 10px 28px rgba(78, 58, 40, 0.09);
+  --bib-sys-shadow-high: 0 2px 6px rgba(78, 58, 40, 0.08), 0 22px 48px rgba(78, 58, 40, 0.16);
+  --bib-sys-ring: 0 0 0 3px rgba(59, 90, 62, 0.28);
+  --bib-sys-duration-fast: 0.12s;
+  --bib-sys-duration-base: 0.15s;
+  --bib-sys-duration-slow: 0.28s;
+  --bib-sys-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --bib-sys-z-header: 50;
+  --bib-sys-z-toast: 100;
+  --bib-sys-layout-max-width: 1080px;
+  --bib-sys-breakpoint-mobile: 720px; /* referencia: los @media no admiten var() */
+
+  /* ---------- Diseno: layout ---------- */
+  --page-padding: 34px 22px 80px;
+  --page-padding-mobile: 22px 14px 70px;
+  --app-header-padding: 18px 4vw;
+  --app-header-padding-mobile: 12px 4vw;
+  --app-header-background: rgba(251, 247, 240, 0.82);
+
+  /* ---------- Diseno: brand / user ---------- */
+  --brand-monogram-size: 52px;
+  --brand-monogram-background: linear-gradient(145deg, #5a4430, #3a2b1d);
+  --brand-monogram-color: var(--bib-sys-color-oro);
+  --user-background: rgba(255, 253, 248, 0.9);
+  --user-avatar-size: 38px;
+
+  /* ---------- Diseno: btn ---------- */
+  --btn-font-family: var(--bib-sys-font-body);
+  --btn-radius: var(--bib-sys-radius-pill);
+  --btn-seal-background: linear-gradient(#456a49, var(--bib-sys-color-verde-oscuro));
+  --btn-seal-color: var(--bib-sys-color-crema-alta);
+  --btn-seal-radius: var(--bib-sys-radius-xl);
+  --btn-seal-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 8px 18px rgba(47, 72, 51, 0.3);
+  --btn-ghost-color: var(--bib-sys-color-tinta);
+  --btn-ghost-accent: var(--bib-sys-color-acento);
+  --btn-danger-color: var(--bib-sys-color-rojo);
+  --btn-danger-border: rgba(138, 47, 36, 0.45);
+  --btn-danger-hover-background: rgba(138, 47, 36, 0.1);
+
+  /* ---------- Diseno: ficha ---------- */
+  --ficha-width: 430px;
+  --ficha-background: var(--bib-sys-color-crema-alta);
+  --ficha-radius: var(--bib-sys-radius-2xl);
+  --ficha-padding: 32px 34px 22px;
+  --ficha-padding-mobile: 26px 20px 18px;
+  --ficha-shadow: var(--bib-sys-shadow-high);
+  --ficha-tabs-background: rgba(107, 79, 56, 0.08);
+  --ficha-tab-active-background: var(--bib-sys-color-blanco-calido);
+
+  /* ---------- Diseno: field / stamp ---------- */
+  --field-background: var(--bib-sys-color-campo);
+  --field-radius: var(--bib-sys-radius-lg);
+  --field-min-height: 46px;
+  --field-placeholder-color: #b8a998;
+  --stamp-radius: 6px;
+  --stamp-ok-color: var(--bib-sys-color-verde-oscuro);
+  --stamp-err-color: var(--bib-sys-color-rojo);
+
+  /* ---------- Diseno: section ---------- */
+  --section-gap: 56px;
+  --section-title-size: 26px;
+  --section-title-size-mobile: 22px;
+  --section-title-color: var(--bib-sys-color-nuez-oscura);
+
+  /* ---------- Diseno: shelf ---------- */
+  --shelf-wood-light: #b89162;
+  --shelf-wood-mid: #9c7650;
+  --shelf-wood-dark: #7d5a38;
+  --shelf-plank-height: 22px;
+  --shelf-brace-width: 14px;
+  --shelf-rows-min-height: 250px;
+  --shelf-rows-gap: 5px;
+  --shelf-rows-gap-mobile: 12px;
+  --shelf-rows-padding: 18px 12px 30px;
+  --shelf-label-background: var(--bib-sys-color-nuez-oscura);
+  --shelf-label-color: var(--bib-sys-color-oro);
+
+  /* ---------- Diseno: book / cover ---------- */
+  --book-width: 70px;
+  --book-height: 212px;
+  --book-card-width: 176px;
+  --book-card-gap: 10px;
+  --book-action-min-height: 44px;
+  --book-action-background: linear-gradient(#a37a50, #7f5b38);
+  --book-action-color: var(--bib-sys-color-blanco-calido);
+  --book-plate-background: var(--bib-sys-color-blanco-calido);
+  --book-plate-shadow: 0 12px 28px rgba(54, 34, 21, 0.2);
+  --cover-width: 96px;
+  --cover-height: 196px;
+  --cover-radius: 4px 8px 8px 4px;
+  --cover-title-color: var(--bib-sys-color-crema-alta);
+  --cover-num-color: var(--bib-sys-color-oro);
+  --cover-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16), inset 0 0 20px rgba(0, 0, 0, 0.24),
+    2px 4px 8px rgba(54, 34, 21, 0.38), 0 12px 18px rgba(54, 34, 21, 0.18);
+  --genre-tag-color: var(--bib-sys-color-tinta-suave);
+
+  /* ---------- Diseno: catalog ---------- */
+  --catalog-min-column: 150px;
+  --catalog-min-column-mobile: 135px;
+  --catalog-gap: 22px 18px;
+  --catalog-gap-mobile: 14px 12px;
+  --catalog-item-background: rgba(255, 253, 248, 0.82);
+  --catalog-item-radius: var(--bib-sys-radius-xl);
+  --catalog-item-hover-border: rgba(59, 90, 62, 0.35);
+  --catalog-cover-height: 210px;
+  --catalog-action-background: linear-gradient(#4f7653, var(--bib-sys-color-verde));
+  --catalog-action-color: var(--bib-sys-color-blanco-calido);
+
+  /* ---------- Diseno: state-msg ---------- */
+  --state-msg-color: var(--bib-sys-color-tinta-suave);
+  --state-msg-border: rgba(107, 79, 56, 0.25);
+  --state-msg-background: rgba(250, 245, 236, 0.5);
+
+  /* ---------- Diseno: ticket ---------- */
+  --ticket-paper: var(--bib-sys-color-papel);
+  --ticket-width: 520px;
+  --ticket-radius: var(--bib-sys-radius-md);
+  --ticket-padding: 22px 26px 16px;
+  --ticket-padding-mobile: 18px 16px 14px;
+  --ticket-dash: rgba(107, 79, 56, 0.4);
+  --ticket-dash-soft: rgba(107, 79, 56, 0.35);
+  --ticket-accent: var(--bib-sys-color-bronce);
+
+  /* ---------- Diseno: admin / status ---------- */
+  --admin-form-background: rgba(255, 253, 248, 0.85);
+  --admin-form-radius: var(--bib-sys-radius-xl);
+  --admin-form-padding: 20px 22px;
+  --admin-form-padding-mobile: 16px;
+  --admin-table-head-background: var(--bib-sys-color-nuez-oscura);
+  --admin-table-stripe: rgba(107, 79, 56, 0.045);
+  --admin-table-hover: rgba(59, 90, 62, 0.09);
+  --status-ok-color: var(--bib-sys-color-verde-oscuro);
+  --status-ok-background: rgba(59, 90, 62, 0.12);
+  --status-lent-color: var(--bib-sys-color-rojo);
+  --status-lent-background: rgba(138, 47, 36, 0.1);
+
+  /* ---------- Diseno: toast ---------- */
+  --toast-background: #3a2d21;
+  --toast-color: var(--bib-sys-color-crema-alta);
+  --toast-accent: var(--bib-sys-color-oro);
+  --toast-accent-error: var(--bib-sys-color-rojo-claro);
+  --toast-radius: var(--bib-sys-radius-xl);
+  --toast-max-width: 460px;
+}

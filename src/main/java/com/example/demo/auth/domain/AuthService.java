@@ -2,13 +2,12 @@ package com.example.demo.auth.domain;
 
 import com.example.demo.usuario.domain.UsuarioDTO;
 import com.example.demo.usuario.domain.Usuario;
-import com.example.demo.auth.domain.CredentialsAuthenticator;
 import com.example.demo.shared.PasswordHasher;
-import com.example.demo.auth.domain.TokenRevocation;
-import com.example.demo.auth.domain.TokenService;
 import com.example.demo.usuario.domain.UsuarioRepository;
+import com.example.demo.usuario.domain.UsuarioResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -23,7 +22,8 @@ public class AuthService {
     private final TokenRevocation tokenRevocation;
 
     /** Devuelve vacío si el email ya estaba registrado (no se revela al cliente). */
-    public Optional<Usuario> registrar(UsuarioDTO dto) {
+    @Transactional
+    public Optional<UsuarioResponseDTO> registrar(UsuarioDTO dto) {
         String email = dto.email().trim().toLowerCase();
         if (usuarioRepository.findByEmail(email).isPresent()) {
             return Optional.empty();
@@ -35,7 +35,7 @@ public class AuthService {
         usuario.setPassword(passwordHasher.encode(dto.password()));
         usuario.setRol("USER");
 
-        return Optional.of(usuarioRepository.save(usuario));
+        return Optional.of(new UsuarioResponseDTO(usuarioRepository.save(usuario)));
     }
 
     public String login(String email, String password) {

@@ -1,10 +1,8 @@
 package com.example.demo.libro.domain;
 
 import lombok.RequiredArgsConstructor;
-
-import com.example.demo.libro.domain.Libro;
 import org.springframework.stereotype.Service;
-import com.example.demo.libro.domain.LibroRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,25 +14,61 @@ public class LibroService {
     private final LibroRepository libroRepository;
     private final List<LibroEnUsoChecker> enUsoCheckers;
 
-    public List<Libro>obtenerTodos(){
-        return libroRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<LibroResponseDTO> obtenerTodos() {
+        return libroRepository.findAll().stream().map(LibroResponseDTO::new).toList();
     }
 
-    public Optional<Libro>obtenerPorId(Long id){
-        return libroRepository.findById(id);
+    @Transactional(readOnly = true)
+    public Optional<LibroResponseDTO> obtenerPorId(Long id) {
+        return libroRepository.findById(id).map(LibroResponseDTO::new);
     }
 
-    public Optional<Libro>obtenerPorIsbn(String isbn){
-        return libroRepository.findByIsbn(isbn);
+    @Transactional(readOnly = true)
+    public Optional<LibroResponseDTO> obtenerPorIsbn(String isbn) {
+        return libroRepository.findByIsbn(isbn).map(LibroResponseDTO::new);
     }
 
-    public Libro guardar(Libro libro){
-        return libroRepository.save(libro);
+    @Transactional
+    public LibroResponseDTO crear(LibroDTO dto) {
+        if (libroRepository.findByIsbn(dto.isbn()).isPresent()) {
+            throw new IsbnDuplicadoException();
+        }
+
+        Libro libro = new Libro();
+        libro.setTitulo(dto.titulo());
+        libro.setAutor(dto.autor());
+        libro.setIsbn(dto.isbn());
+        libro.setGenero(dto.genero());
+        libro.setDisponible(true);
+
+        return new LibroResponseDTO(libroRepository.save(libro));
     }
 
-    public void eliminar(Long id){
+    /** Devuelve vacío si el libro no existe. El género nulo no sobrescribe el actual. */
+    @Transactional
+    public Optional<LibroResponseDTO> actualizar(Long id, LibroDTO dto) {
+        return libroRepository.findById(id).map(libro -> {
+            Optional<Libro> duplicado = libroRepository.findByIsbn(dto.isbn());
+            if (duplicado.isPresent() && !duplicado.get().getId().equals(id)) {
+                throw new IsbnDuplicadoException();
+            }
+
+            libro.setTitulo(dto.titulo());
+            libro.setAutor(dto.autor());
+            libro.setIsbn(dto.isbn());
+            if (dto.genero() != null) {
+                libro.setGenero(dto.genero());
+            }
+
+            return new LibroResponseDTO(libroRepository.save(libro));
+        });
+    }
+
+    @Transactional
+    public void eliminar(Long id) {
         if (enUsoCheckers.stream().anyMatch(c -> c.estaEnUso(id))) {
-            throw new IllegalStateException("No se puede retirar un libro con préstamos registrados");
+            throw new LibroConPrestamosException();
         }
         libroRepository.deleteById(id);
     }

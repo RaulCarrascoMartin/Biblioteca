@@ -1,7 +1,5 @@
 package com.example.demo.prestamo.domain;
 
-import com.example.demo.prestamo.domain.Prestamo;
-
 import java.util.List;
 import java.util.Optional;
 

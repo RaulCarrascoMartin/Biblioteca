@@ -1,0 +1,73 @@
+/* Estanteria: pila de baldas, tablon, montantes y etiqueta */
+.shelf-stack { display: flex; flex-direction: column; gap: 0; }
+
+.shelf {
+  position: relative;
+  padding: 16px 14px 20px;
+}
+
+.shelf__rows {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--shelf-rows-gap);
+  min-height: var(--shelf-rows-min-height);
+  padding: var(--shelf-rows-padding);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.shelf__plank {
+  position: relative;
+  height: var(--shelf-plank-height);
+  border-radius: var(--bib-sys-radius-sm);
+  background: linear-gradient(var(--shelf-wood-light), var(--shelf-wood-mid) 45%, var(--shelf-wood-dark));
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.25) inset, 0 6px 14px rgba(78, 58, 40, 0.3), 0 16px 26px rgba(78, 58, 40, 0.12);
+}
+.shelf__plank::before { /* regleta frontal */
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: -3px;
+  height: 6px;
+  background: linear-gradient(#cfa673, #ad8656);
+  border-radius: var(--bib-sys-radius-sm) var(--bib-sys-radius-sm) 0 0;
+}
+
+.shelf__brace {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: var(--shelf-brace-width);
+  background: linear-gradient(90deg, #8e6a44, var(--bib-sys-color-nuez));
+  border-radius: 6px 6px 2px 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.shelf__brace--left { left: 0; }
+.shelf__brace--right { right: 0; }
+
+.shelf__label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 6px;
+  font-family: var(--bib-sys-font-mono);
+  font-size: var(--bib-sys-font-size-xs);
+  letter-spacing: 1.5px;
+  color: var(--shelf-label-color);
+  background: var(--shelf-label-background);
+  border: 1px solid rgba(207, 154, 82, 0.4);
+  border-radius: var(--bib-sys-radius-pill);
+  padding: 3px 14px;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+/* caballo / terminacion de la fila */
+.shelf__end {
+  flex: 1 1 40px;
+  align-self: flex-end;
+  height: 40px;
+  margin-bottom: 2px;
+}
+
+@media (max-width: 720px) {
+  .shelf__rows { gap: var(--shelf-rows-gap-mobile); }
+}

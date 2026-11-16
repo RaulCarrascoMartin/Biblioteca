@@ -1,7 +1,5 @@
 package com.example.demo.usuario.domain;
 
-import com.example.demo.usuario.domain.Usuario;
-
 import java.util.List;
 import java.util.Optional;
 
