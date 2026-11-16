@@ -1,16 +1,10 @@
 package com.example.demo.config;
 
-import com.example.demo.auth.domain.InvalidCredentialsException;
-import com.example.demo.libro.domain.IsbnDuplicadoException;
-import com.example.demo.libro.domain.LibroConPrestamosException;
-import com.example.demo.prestamo.domain.LibroNoDisponibleException;
-import com.example.demo.prestamo.domain.PrestamoYaDevueltoException;
 import com.example.demo.shared.NotFoundException;
-import com.example.demo.usuario.domain.AutoEliminacionException;
-import com.example.demo.usuario.domain.EmailYaRegistradoException;
-import com.example.demo.usuario.domain.UsuarioConPrestamosException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,18 +22,14 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/** Errores transversales (validación, seguridad, genéricos). Los de negocio los trata cada módulo. */
 @Slf4j
 @RestControllerAdvice
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleBadCredentials(BadCredentialsException ex) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Credenciales incorrectas"));
-    }
-
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<Map<String, String>> handleInvalidCredentials(InvalidCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Credenciales incorrectas"));
     }
@@ -73,24 +63,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleMalformedBody(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", "Cuerpo de la petición inválido"));
-    }
-
-    /** El cuerpo es texto plano, como antes de extraer la excepción. */
-    @ExceptionHandler(IsbnDuplicadoException.class)
-    public ResponseEntity<String> handleIsbnDuplicado(IsbnDuplicadoException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
-    }
-
-    @ExceptionHandler({LibroConPrestamosException.class, UsuarioConPrestamosException.class,
-            LibroNoDisponibleException.class, PrestamoYaDevueltoException.class,
-            AutoEliminacionException.class})
-    public ResponseEntity<Map<String, String>> handleConflictoDeNegocio(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
-    }
-
-    @ExceptionHandler(EmailYaRegistradoException.class)
-    public ResponseEntity<Map<String, String>> handleEmailYaRegistrado(EmailYaRegistradoException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -1,12 +1,12 @@
 package com.example.demo;
 
-import com.example.demo.libro.domain.Libro;
-import com.example.demo.usuario.domain.Usuario;
-import com.example.demo.auth.security.JwtService;
-import com.example.demo.libro.persistence.JpaLibroRepository;
-import com.example.demo.prestamo.persistence.JpaPrestamoRepository;
-import com.example.demo.usuario.persistence.JpaUsuarioRepository;
-import com.example.demo.auth.security.RateLimitFilter;
+import com.example.demo.auth.internal.security.JwtService;
+import com.example.demo.auth.internal.security.RateLimitFilter;
+import com.example.demo.libro.internal.persistence.JpaLibroRepository;
+import com.example.demo.libro.internal.persistence.LibroEntity;
+import com.example.demo.prestamo.internal.persistence.JpaPrestamoRepository;
+import com.example.demo.usuario.internal.persistence.JpaUsuarioRepository;
+import com.example.demo.usuario.internal.persistence.UsuarioEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -56,8 +56,8 @@ public abstract class BaseIntegrationTest {
         rateLimitFilter.reset();
     }
 
-    protected Usuario crearUsuario(String nombre, String email, String rol) {
-        Usuario u = new Usuario();
+    protected UsuarioEntity crearUsuario(String nombre, String email, String rol) {
+        UsuarioEntity u = new UsuarioEntity();
         u.setNombre(nombre);
         u.setEmail(email);
         u.setRol(rol);
@@ -65,15 +65,15 @@ public abstract class BaseIntegrationTest {
         return usuarioRepository.save(u);
     }
 
-    protected Libro crearLibro(String titulo) {
-        Libro l = new Libro();
+    protected LibroEntity crearLibro(String titulo) {
+        LibroEntity l = new LibroEntity();
         l.setTitulo(titulo);
         l.setAutor("Autor de prueba");
         l.setIsbn(String.format("978000000000%03d", seq++));
         return libroRepository.save(l);
     }
 
-    protected String tokenDe(Usuario u) {
+    protected String tokenDe(UsuarioEntity u) {
         return jwtService.generarToken(u.getEmail(), u.getTokenVersion());
     }
 }

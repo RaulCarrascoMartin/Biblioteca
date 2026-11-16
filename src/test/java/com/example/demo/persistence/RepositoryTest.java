@@ -1,11 +1,11 @@
 package com.example.demo.persistence;
 
-import com.example.demo.libro.domain.Libro;
-import com.example.demo.prestamo.domain.Prestamo;
-import com.example.demo.usuario.domain.Usuario;
-import com.example.demo.libro.persistence.JpaLibroRepository;
-import com.example.demo.prestamo.persistence.JpaPrestamoRepository;
-import com.example.demo.usuario.persistence.JpaUsuarioRepository;
+import com.example.demo.libro.internal.persistence.JpaLibroRepository;
+import com.example.demo.libro.internal.persistence.LibroEntity;
+import com.example.demo.prestamo.internal.persistence.JpaPrestamoRepository;
+import com.example.demo.prestamo.internal.persistence.PrestamoEntity;
+import com.example.demo.usuario.internal.persistence.JpaUsuarioRepository;
+import com.example.demo.usuario.internal.persistence.UsuarioEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -32,8 +32,8 @@ class RepositoryTest {
     @Autowired
     private JpaPrestamoRepository prestamoRepository;
 
-    private Usuario usuario(String email) {
-        Usuario u = new Usuario();
+    private UsuarioEntity usuario(String email) {
+        UsuarioEntity u = new UsuarioEntity();
         u.setNombre("Un Lector");
         u.setEmail(email);
         u.setPassword("{noop}x");
@@ -41,18 +41,18 @@ class RepositoryTest {
         return usuarioRepository.saveAndFlush(u);
     }
 
-    private Libro libro(String isbn) {
-        Libro l = new Libro();
+    private LibroEntity libro(String isbn) {
+        LibroEntity l = new LibroEntity();
         l.setTitulo("Titulo " + isbn);
         l.setAutor("Autor");
         l.setIsbn(isbn);
         return libroRepository.saveAndFlush(l);
     }
 
-    private Prestamo prestamo(Usuario u, Libro l, LocalDate fechaDevolucion) {
-        Prestamo p = new Prestamo();
-        p.setUsuario(u);
-        p.setLibro(l);
+    private PrestamoEntity prestamo(UsuarioEntity u, LibroEntity l, LocalDate fechaDevolucion) {
+        PrestamoEntity p = new PrestamoEntity();
+        p.setUsuarioId(u.getId());
+        p.setLibroId(l.getId());
         p.setFechaPrestamo(LocalDate.of(2026, 1, 10));
         p.setFechaDevolucion(fechaDevolucion);
         return prestamoRepository.saveAndFlush(p);
@@ -68,7 +68,7 @@ class RepositoryTest {
     @Test
     void emailDuplicadoViolaLasReglas() {
         usuario("dup@test.es");
-        Usuario repetido = new Usuario();
+        UsuarioEntity repetido = new UsuarioEntity();
         repetido.setNombre("Otro Lector");
         repetido.setEmail("dup@test.es");
         repetido.setPassword("{noop}x");
@@ -86,28 +86,28 @@ class RepositoryTest {
 
     @Test
     void findByUsuarioIdDevuelveSoloLosPrestamosDelUsuario() {
-        Usuario ana = usuario("ana-repo@test.es");
-        Usuario bob = usuario("bob-repo@test.es");
+        UsuarioEntity ana = usuario("ana-repo@test.es");
+        UsuarioEntity bob = usuario("bob-repo@test.es");
         libro("9782222222224");
         libro("9783333333331");
-        Libro libroAna = libro("9784444444448");
+        LibroEntity libroAna = libro("9784444444448");
         prestamo(ana, libroAna, null);
         prestamo(bob, libro("9785555555555"), null);
         prestamo(ana, libro("9786666666662"), LocalDate.of(2026, 2, 1));
 
         var deAna = prestamoRepository.findByUsuarioId(ana.getId());
         assertEquals(2, deAna.size());
-        assertTrue(deAna.stream().allMatch(p -> p.getUsuario().getId().equals(ana.getId())));
+        assertTrue(deAna.stream().allMatch(p -> p.getUsuarioId().equals(ana.getId())));
     }
 
     @Test
     void findByFechaDevolucionIsNullDevuelveSoloActivos() {
-        Usuario ana = usuario("activa@test.es");
+        UsuarioEntity ana = usuario("activa@test.es");
         prestamo(ana, libro("9787777777779"), null);
         prestamo(ana, libro("9788888888886"), LocalDate.of(2026, 2, 1));
 
         var activos = prestamoRepository.findByFechaDevolucionIsNull();
         assertEquals(1, activos.size());
-        assertFalse(activos.get(0).getLibro().getIsbn().equals("9788888888886"));
+        assertTrue(activos.get(0).getFechaDevolucion() == null);
     }
 }
