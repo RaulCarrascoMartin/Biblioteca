@@ -1,10 +1,11 @@
-package com.example.demo.auth.internal.security;
+package com.example.demo.config;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 
 import java.util.Collection;
 
+/** Principal de Spring Security: añade la versión del token para poder invalidar sesiones. */
 public class AuthUser extends User {
 
     private final int tokenVersion;

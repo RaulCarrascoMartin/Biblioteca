@@ -1,6 +1,7 @@
-package com.example.demo.auth.internal.security;
+package com.example.demo.config;
 
-import com.example.demo.auth.internal.domain.TokenService;
+import com.example.demo.shared.TokenClaims;
+import com.example.demo.shared.TokenProvider;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -11,10 +12,10 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.function.Function;
+import java.util.Optional;
 
 @Service
-public class JwtService implements TokenService {
+public class JwtService implements TokenProvider {
 
     private static final int MIN_SECRET_BYTES = 32;
     private static final String CLAIM_VERSION = "tv";
@@ -39,12 +40,8 @@ public class JwtService implements TokenService {
         this.audience = audience;
     }
 
-    public String generarToken(String email) {
-        return generarToken(email, 0);
-    }
-
     @Override
-    public String generarToken(String email, int version) {
+    public String generate(String email, int version) {
         Date now = new Date(System.currentTimeMillis());
         return Jwts.builder()
                 .subject(email)
@@ -57,43 +54,24 @@ public class JwtService implements TokenService {
                 .compact();
     }
 
-    public String extraerEmail(String token) {
-        return extraerClaim(token, Claims::getSubject);
-    }
-
-    public boolean esTokenValido(String token, String email) {
+    @Override
+    public Optional<TokenClaims> validate(String token) {
         try {
-            Claims claims = extraerTodosLosClaims(token);
-            return claims.getSubject().equalsIgnoreCase(email)
-                    && !haExpirado(claims);
+            Claims claims = Jwts.parser()
+                    .verifyWith(signingKey)
+                    .requireIssuer(issuer)
+                    .requireAudience(audience)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            Integer version = claims.get(CLAIM_VERSION, Integer.class);
+            if (claims.getSubject() == null || version == null) {
+                return Optional.empty();
+            }
+            // parseSignedClaims ya rechaza tokens caducados (ExpiredJwtException)
+            return Optional.of(new TokenClaims(claims.getSubject(), version));
         } catch (JwtException | IllegalArgumentException e) {
-            return false;
+            return Optional.empty();
         }
-    }
-
-    public boolean esTokenValido(String token, String email, int versionActual) {
-        if (!esTokenValido(token, email)) {
-            return false;
-        }
-        Integer version = extraerClaim(token, c -> c.get(CLAIM_VERSION, Integer.class));
-        return version != null && version == versionActual;
-    }
-
-    private boolean haExpirado(Claims claims) {
-        return claims.getExpiration().before(new Date());
-    }
-
-    private <T> T extraerClaim(String token, Function<Claims, T> resolver) {
-        return resolver.apply(extraerTodosLosClaims(token));
-    }
-
-    private Claims extraerTodosLosClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(signingKey)
-                .requireIssuer(issuer)
-                .requireAudience(audience)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
     }
 }

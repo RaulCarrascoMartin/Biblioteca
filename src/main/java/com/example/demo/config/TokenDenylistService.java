@@ -1,6 +1,6 @@
-package com.example.demo.auth.internal.security;
+package com.example.demo.config;
 
-import com.example.demo.auth.internal.domain.TokenRevocation;
+import com.example.demo.shared.TokenRevocation;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -24,6 +24,7 @@ public class TokenDenylistService implements TokenRevocation {
         }
     }
 
+    @Override
     public boolean isRevoked(String token) {
         String sig = signature(token);
         if (sig == null) return false;

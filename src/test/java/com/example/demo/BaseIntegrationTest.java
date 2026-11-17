@@ -1,20 +1,26 @@
 package com.example.demo;
 
-import com.example.demo.auth.internal.security.JwtService;
-import com.example.demo.auth.internal.security.RateLimitFilter;
-import com.example.demo.libro.internal.persistence.JpaLibroRepository;
-import com.example.demo.libro.internal.persistence.LibroEntity;
-import com.example.demo.prestamo.internal.persistence.JpaPrestamoRepository;
-import com.example.demo.usuario.internal.persistence.JpaUsuarioRepository;
-import com.example.demo.usuario.internal.persistence.UsuarioEntity;
+import com.example.demo.config.RateLimitFilter;
+import com.example.demo.shared.TokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+
+/**
+ * Base de los tests de integración (contexto completo con seguridad real). Solo usa API pública de
+ * los módulos y {@code shared}; los datos de partida se siembran por JDBC sobre el esquema
+ * histórico (D16), de modo que no se importan clases {@code internal}.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -26,54 +32,63 @@ public abstract class BaseIntegrationTest {
     protected final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
-    protected JpaUsuarioRepository usuarioRepository;
-
-    @Autowired
-    protected JpaLibroRepository libroRepository;
-
-    @Autowired
-    protected JpaPrestamoRepository prestamoRepository;
+    protected JdbcTemplate jdbc;
 
     @Autowired
     protected PasswordEncoder passwordEncoder;
 
     @Autowired
-    protected JwtService jwtService;
+    protected TokenProvider tokenProvider;
 
     @Autowired
     protected RateLimitFilter rateLimitFilter;
 
     private int seq = 0;
 
-    protected void limpiarBD() {
-        prestamoRepository.deleteAll();
-        libroRepository.deleteAll();
-        usuarioRepository.deleteAll();
+    protected void cleanDb() {
+        jdbc.update("DELETE FROM prestamos");
+        jdbc.update("DELETE FROM libros");
+        jdbc.update("DELETE FROM usuarios");
         seq = 0;
     }
 
-    protected void limpiarLimites() {
+    protected void resetLimits() {
         rateLimitFilter.reset();
     }
 
-    protected UsuarioEntity crearUsuario(String nombre, String email, String rol) {
-        UsuarioEntity u = new UsuarioEntity();
-        u.setNombre(nombre);
-        u.setEmail(email);
-        u.setRol(rol);
-        u.setPassword(passwordEncoder.encode("Pass1234"));
-        return usuarioRepository.save(u);
+    protected long createUser(String name, String email, String role) {
+        return insert("INSERT INTO usuarios (nombre, email, password, rol, token_version) VALUES (?, ?, ?, ?, 0)",
+                name, email, passwordEncoder.encode("Pass1234"), role);
     }
 
-    protected LibroEntity crearLibro(String titulo) {
-        LibroEntity l = new LibroEntity();
-        l.setTitulo(titulo);
-        l.setAutor("Autor de prueba");
-        l.setIsbn(String.format("978000000000%03d", seq++));
-        return libroRepository.save(l);
+    protected long createBook(String title) {
+        return insert("INSERT INTO libros (titulo, autor, isbn, disponible) VALUES (?, ?, ?, TRUE)",
+                title, "Autor de prueba", String.format("978000000000%03d", seq++));
     }
 
-    protected String tokenDe(UsuarioEntity u) {
-        return jwtService.generarToken(u.getEmail(), u.getTokenVersion());
+    protected long createLoan(long userId, long bookId) {
+        jdbc.update("UPDATE libros SET disponible = FALSE WHERE id = ?", bookId);
+        return insert("INSERT INTO prestamos (libro_id, usuario_id, fecha_prestamo) VALUES (?, ?, CURRENT_DATE)",
+                bookId, userId);
+    }
+
+    protected String tokenFor(String email) {
+        return tokenProvider.generate(email, 0);
+    }
+
+    protected String bearer(String email) {
+        return "Bearer " + tokenFor(email);
+    }
+
+    private long insert(String sql, Object... args) {
+        KeyHolder keys = new GeneratedKeyHolder();
+        jdbc.update(con -> {
+            PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            for (int i = 0; i < args.length; i++) {
+                ps.setObject(i + 1, args[i]);
+            }
+            return ps;
+        }, keys);
+        return ((Number) keys.getKeys().get("id")).longValue();
     }
 }

@@ -1,6 +1,8 @@
 package com.example.demo;
 
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -14,193 +16,310 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 /**
- * Reglas de arquitectura del monolito modular.
+ * Reglas ArchUnit para lo que Spring Modulith no cubre (el límite entre módulos lo verifica
+ * {@code ApplicationModulesTest}). Esquema por módulo ({@code catalog}, {@code users}, {@code loans},
+ * {@code auth}): API pública en la raíz y {@code dto}; privado en {@code internal} con
+ * {@code application, controller (dto, handler, mapper), usecase, domain (model, dto, mapper, service,
+ * repository, exception), persistence}.
  *
- * <p>Módulos de negocio: {@code libro}, {@code usuario}, {@code prestamo} y {@code auth}. Cada módulo
- * tiene una <b>API pública</b> (la interfaz {@code XModule}, {@code dto}, {@code exception} y los SPI en la
- * raíz) y una <b>implementación privada</b> en {@code internal}, organizada en capas:
- * {@code application}, {@code web}, {@code domain}, {@code persistence}, {@code seed} y {@code security}.
- *
- * <p>El dominio es el centro: no depende de nada de infraestructura (JPA, Spring Data, web, seguridad);
- * {@code persistence} implementa los puertos que declara el dominio (inversión de dependencias).
- * Los módulos solo se comunican por la API pública y DTO, nunca con modelos ni entidades internas.
- * {@code shared} es el núcleo compartido y {@code config} la composición transversal.
+ * <p>Flujos: {@code Controller -> UseCase -> Service -> Repository <- RepositoryImpl} (HTTP) y
+ * {@code XModule -> XModuleImpl -> Service} (otros módulos). Por D7 el {@code UseCase} mapea a DTO web,
+ * así que depende de {@code controller.dto} y {@code controller.mapper} (no de controllers ni handlers).
  */
 @AnalyzeClasses(packages = "com.example.demo", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
     private static final String BASE = "com.example.demo";
+    private static final String INTERNAL = BASE + ".*.internal..";
+    private static final String CONTROLLER = BASE + ".*.internal.controller..";
+    private static final String USECASE = BASE + ".*.internal.usecase..";
+    private static final String DOMAIN = BASE + ".*.internal.domain..";
+    private static final String SERVICE = BASE + ".*.internal.domain.service..";
+    private static final String PERSISTENCE = BASE + ".*.internal.persistence..";
+    private static final String APPLICATION = BASE + ".*.internal.application..";
+    private static final String[] BUSINESS_MODULES = {"catalog", "users", "loans", "auth"};
 
-    // ---- Estructura modular -------------------------------------------------------------------
+    // ---- Módulos y encapsulación ---------------------------------------------------------------
 
     @ArchTest
-    static final ArchRule los_modulos_no_tienen_dependencias_ciclicas =
+    static final ArchRule modules_are_free_of_cycles =
             slices().matching(BASE + ".(*)..").should().beFreeOfCycles();
 
     @ArchTest
-    static final ArchRule shared_no_depende_de_ningun_modulo =
-            noClasses().that().resideInAPackage(BASE + ".shared..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            BASE + ".libro..", BASE + ".usuario..", BASE + ".prestamo..",
-                            BASE + ".auth..", BASE + ".config..");
+    static final ArchRule internal_is_private_to_its_own_module =
+            classes().that().resideInAPackage(INTERNAL).should(beAccessedOnlyFromTheirOwnModule());
 
     @ArchTest
-    static final ArchRule libro_no_depende_de_otros_modulos =
-            noClasses().that().resideInAPackage(BASE + ".libro..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            BASE + ".usuario..", BASE + ".prestamo..", BASE + ".auth..", BASE + ".config..");
+    static final ArchRule public_api_does_not_depend_on_internal_except_module_impl =
+            noClasses().that().resideInAnyPackage(BASE + ".*.dto..", BASE + ".*.exception..", BASE + ".shared..")
+                    .should().dependOnClassesThat().resideInAPackage(INTERNAL);
 
     @ArchTest
-    static final ArchRule usuario_no_depende_de_otros_modulos =
-            noClasses().that().resideInAPackage(BASE + ".usuario..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            BASE + ".libro..", BASE + ".prestamo..", BASE + ".auth..", BASE + ".config..");
-
-    @ArchTest
-    static final ArchRule prestamo_solo_depende_de_libro_y_usuario =
-            noClasses().that().resideInAPackage(BASE + ".prestamo..")
-                    .should().dependOnClassesThat().resideInAnyPackage(BASE + ".auth..", BASE + ".config..");
-
-    @ArchTest
-    static final ArchRule auth_solo_depende_de_usuario_y_shared =
-            noClasses().that().resideInAPackage(BASE + ".auth..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            BASE + ".libro..", BASE + ".prestamo..", BASE + ".config..");
-
-    @ArchTest
-    static final ArchRule nadie_depende_de_config =
+    static final ArchRule no_module_depends_on_config =
             noClasses().that().resideOutsideOfPackage(BASE + ".config..")
                     .should().dependOnClassesThat().resideInAPackage(BASE + ".config..");
 
-    // ---- Encapsulación: internal es privado; los módulos se hablan por API pública y DTO ----------
+    @ArchTest
+    static final ArchRule modules_only_have_known_subpackages =
+            classes().that().resideInAnyPackage(moduleTrees())
+                    .should().resideInAnyPackage(
+                            BASE + ".catalog", BASE + ".users", BASE + ".loans", BASE + ".auth",
+                            BASE + ".*.dto", BASE + ".*.exception",
+                            BASE + ".*.internal.application",
+                            BASE + ".*.internal.controller", BASE + ".*.internal.controller.dto",
+                            BASE + ".*.internal.controller.handler", BASE + ".*.internal.controller.mapper",
+                            BASE + ".*.internal.usecase",
+                            BASE + ".*.internal.domain.model", BASE + ".*.internal.domain.dto",
+                            BASE + ".*.internal.domain.mapper", BASE + ".*.internal.domain.service",
+                            BASE + ".*.internal.domain.repository", BASE + ".*.internal.domain.exception",
+                            BASE + ".*.internal.persistence");
+
+    // ---- Capas dentro del módulo ---------------------------------------------------------------
 
     @ArchTest
-    static final ArchRule internal_es_privado_para_los_demas_modulos =
-            classes().that().resideInAPackage(BASE + ".*.internal..")
-                    .should(serAccedidasSoloDesdeSuPropioModulo());
+    static final ArchRule controllers_only_use_usecases_not_services_or_persistence =
+            noClasses().that().resideInAPackage(CONTROLLER)
+                    .should().dependOnClassesThat().resideInAnyPackage(SERVICE, PERSISTENCE, DOMAIN + "repository..");
 
-    private static ArchCondition<JavaClass> serAccedidasSoloDesdeSuPropioModulo() {
-        return new ArchCondition<>("ser accedidas solo desde su propio módulo") {
+    @ArchTest
+    static final ArchRule usecases_do_not_depend_on_each_other =
+            noClasses().that().haveSimpleNameEndingWith("UseCase")
+                    .should().dependOnClassesThat().haveSimpleNameEndingWith("UseCase");
+
+    @ArchTest
+    static final ArchRule usecases_do_not_use_controllers_or_handlers_or_persistence =
+            // Sí pueden usar controller.dto y controller.mapper (D7: el caso de uso mapea a DTO web)
+            noClasses().that().resideInAPackage(USECASE)
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            PERSISTENCE, DOMAIN + "repository..", BASE + ".*.internal.controller.handler..")
+                    .orShould().dependOnClassesThat().haveSimpleNameEndingWith("Controller")
+                    .orShould().dependOnClassesThat().haveSimpleNameEndingWith("HttpApi");
+
+    @ArchTest
+    static final ArchRule module_api_and_impl_do_not_depend_on_usecases_or_controllers =
+            noClasses().that().haveSimpleNameEndingWith("Module").or().haveSimpleNameEndingWith("ModuleImpl")
+                    .should().dependOnClassesThat().resideInAnyPackage(USECASE, CONTROLLER);
+
+    @ArchTest
+    static final ArchRule application_layer_does_not_use_web_or_persistence =
+            noClasses().that().resideInAPackage(APPLICATION)
+                    .should().dependOnClassesThat().resideInAnyPackage(CONTROLLER, USECASE, PERSISTENCE);
+
+    @ArchTest
+    static final ArchRule domain_does_not_depend_on_other_layers =
+            noClasses().that().resideInAPackage(DOMAIN)
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            PERSISTENCE, CONTROLLER, USECASE, APPLICATION);
+
+    @ArchTest
+    static final ArchRule domain_is_free_of_web_validation_and_persistence_technology =
+            // Permitido en el dominio: org.springframework.stereotype/transaction (@Service, @Transactional)
+            noClasses().that().resideInAPackage(DOMAIN)
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.web..", "org.springframework.http..", "jakarta.validation..",
+                            "jakarta.persistence..", "org.springframework.data..", "org.springframework.security..",
+                            "jakarta.servlet..", "io.jsonwebtoken..");
+
+    @ArchTest
+    static final ArchRule persistence_does_not_depend_on_web_or_usecases =
+            noClasses().that().resideInAPackage(PERSISTENCE)
+                    .should().dependOnClassesThat().resideInAnyPackage(CONTROLLER, USECASE, APPLICATION);
+
+    @ArchTest
+    static final ArchRule domain_repositories_are_interfaces =
+            classes().that().resideInAPackage(DOMAIN + "repository..").should().beInterfaces();
+
+    @ArchTest
+    static final ArchRule domain_services_are_interfaces_or_impl =
+            classes().that().resideInAPackage(SERVICE).and().haveSimpleNameNotEndingWith("Impl")
+                    .should().beInterfaces();
+
+    // ---- Ubicación por sufijo --------------------------------------------------------------------
+
+    @ArchTest
+    static final ArchRule services_live_in_domain_service =
+            classes().that().haveSimpleNameEndingWith("Service").or().haveSimpleNameEndingWith("ServiceImpl")
+                    .and().resideInAPackage(BASE + ".*.internal..")
+                    .should().resideInAPackage(SERVICE);
+
+    @ArchTest
+    static final ArchRule repositories_live_in_domain_repository =
+            classes().that().haveSimpleNameEndingWith("Repository").and().resideInAPackage(BASE + ".*.internal..")
+                    .and().haveSimpleNameNotStartingWith("Jpa")
+                    .should().resideInAPackage(DOMAIN + "repository..");
+
+    @ArchTest
+    static final ArchRule repository_impls_live_in_persistence =
+            classes().that().haveSimpleNameEndingWith("RepositoryImpl")
+                    .should().resideInAPackage(PERSISTENCE)
+                    .andShould().implement(com.tngtech.archunit.base.DescribedPredicate.describe(
+                            "a domain repository interface",
+                            (JavaClass i) -> i.getPackageName().contains(".internal.domain.repository")));
+
+    @ArchTest
+    static final ArchRule usecases_live_in_usecase_package =
+            classes().that().haveSimpleNameEndingWith("UseCase").should().resideInAPackage(USECASE);
+
+    @ArchTest
+    static final ArchRule controllers_live_in_controller_package =
+            classes().that().areAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
+                    .should().resideInAPackage(CONTROLLER)
+                    .andShould().haveSimpleNameEndingWith("Controller");
+
+    @ArchTest
+    static final ArchRule module_impls_live_in_application =
+            classes().that().haveSimpleNameEndingWith("ModuleImpl").should().resideInAPackage(APPLICATION);
+
+    @ArchTest
+    static final ArchRule mappers_live_in_mapper_packages_and_use_mapstruct =
+            classes().that().haveSimpleNameEndingWith("Mapper").and().resideInAPackage(BASE + ".*.internal..")
+                    .should().resideInAnyPackage(
+                            BASE + ".*.internal.controller.mapper..", BASE + ".*.internal.domain.mapper..",
+                            PERSISTENCE)
+                    .andShould().beAnnotatedWith(org.mapstruct.Mapper.class);
+
+    @ArchTest
+    static final ArchRule exception_handlers_live_in_controller_handler =
+            classes().that().areAnnotatedWith(org.springframework.web.bind.annotation.RestControllerAdvice.class)
+                    .and().resideInAPackage(BASE + ".*.internal..")
+                    .should().resideInAPackage(BASE + ".*.internal.controller.handler..");
+
+    @ArchTest
+    static final ArchRule jpa_entities_live_in_persistence =
+            classes().that().areAnnotatedWith(jakarta.persistence.Entity.class).should().resideInAPackage(PERSISTENCE);
+
+    @ArchTest
+    static final ArchRule spring_data_repositories_live_in_persistence =
+            classes().that().areAssignableTo(org.springframework.data.repository.Repository.class)
+                    .should().resideInAPackage(PERSISTENCE);
+
+    @ArchTest
+    static final ArchRule domain_models_are_not_exposed_by_public_dtos_and_names_end_in_dto =
+            classes().that().resideInAnyPackage(BASE + ".*.dto..").and().areNotInterfaces().and().areNotEnums()
+                    .and().haveSimpleNameNotEndingWith("package-info")
+                    .should().haveSimpleNameEndingWith("Dto");
+
+    @ArchTest
+    static final ArchRule domain_and_persistence_do_not_use_web_dto_naming_mixups =
+            // Los DTO del dominio terminan en Dto; los del controller en Request/Response/Dto (Login/Register)
+            classes().that().resideInAPackage(DOMAIN + "dto..").should().haveSimpleNameEndingWith("Dto");
+
+    // ---- shared y config -------------------------------------------------------------------------
+
+    @ArchTest
+    static final ArchRule shared_is_free_of_spring_and_jakarta =
+            // org.springframework.modulith: solo la anotación de package-info
+            noClasses().that().resideInAPackage(BASE + ".shared..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.stereotype..", "org.springframework.beans..",
+                            "org.springframework.context..", "org.springframework.web..",
+                            "org.springframework.http..", "org.springframework.security..",
+                            "org.springframework.data..", "org.springframework.core..",
+                            "jakarta..", "lombok..");
+
+    @ArchTest
+    static final ArchRule shared_does_not_depend_on_modules =
+            noClasses().that().resideInAPackage(BASE + ".shared..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            BASE + ".catalog..", BASE + ".users..", BASE + ".loans..", BASE + ".auth..", BASE + ".config..");
+
+    // ---- Autorización, eventos, inyección --------------------------------------------------------
+
+    @ArchTest
+    static final ArchRule every_public_usecase_method_takes_requester_first =
+            classes().that().haveSimpleNameEndingWith("UseCase")
+                    .should(haveRequesterAsFirstParameterInPublicMethods());
+
+    @ArchTest
+    static final ArchRule method_security_and_security_context_only_in_config =
+            noClasses().that().resideOutsideOfPackage(BASE + ".config..")
+                    .should().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.security.access.prepost.PreAuthorize")
+                    .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.security.access.annotation.Secured")
+                    .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.security.core.context.SecurityContextHolder");
+
+    @ArchTest
+    static final ArchRule controllers_do_not_import_spring_security =
+            noClasses().that().resideInAPackage(CONTROLLER)
+                    .should().dependOnClassesThat().resideInAPackage("org.springframework.security..");
+
+    @ArchTest
+    static final ArchRule no_application_events =
+            noClasses().should().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.context.ApplicationEventPublisher")
+                    .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.context.event.EventListener")
+                    .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                            "org.springframework.modulith.events.ApplicationModuleListener");
+
+    @ArchTest
+    static final ArchRule no_field_injection =
+            noClasses().should().dependOnClassesThat()
+                    .haveFullyQualifiedName("org.springframework.beans.factory.annotation.Autowired");
+
+    @ArchTest
+    static final ArchRule servlet_api_only_in_controller_and_config =
+            noClasses().that().resideOutsideOfPackages(CONTROLLER, BASE + ".config..")
+                    .should().dependOnClassesThat().resideInAnyPackage("jakarta.servlet..");
+
+    // ---- Condiciones propias -----------------------------------------------------------------------
+
+    private static String[] moduleTrees() {
+        String[] trees = new String[BUSINESS_MODULES.length];
+        for (int i = 0; i < trees.length; i++) {
+            trees[i] = BASE + "." + BUSINESS_MODULES[i] + "..";
+        }
+        return trees;
+    }
+
+    private static ArchCondition<JavaClass> beAccessedOnlyFromTheirOwnModule() {
+        return new ArchCondition<>("be accessed only from their own module") {
             @Override
-            public void check(JavaClass interna, ConditionEvents events) {
-                String modulo = modulo(interna);
-                interna.getDirectDependenciesToSelf().stream()
-                        .filter(d -> modulo(d.getOriginClass()) != null)
-                        .filter(d -> !modulo.equals(modulo(d.getOriginClass())))
+            public void check(JavaClass internal, ConditionEvents events) {
+                String module = module(internal);
+                internal.getDirectDependenciesToSelf().stream()
+                        .filter(d -> module(d.getOriginClass()) != null)
+                        .filter(d -> !module.equals(module(d.getOriginClass())))
                         .forEach(d -> events.add(SimpleConditionEvent.violated(d, d.getDescription())));
             }
         };
     }
 
-    private static String modulo(JavaClass clazz) {
+    private static String module(JavaClass clazz) {
         String pkg = clazz.getPackageName();
         if (!pkg.startsWith(BASE + ".")) {
             return null;
         }
-        String resto = pkg.substring(BASE.length() + 1);
-        int punto = resto.indexOf('.');
-        return punto < 0 ? resto : resto.substring(0, punto);
+        String rest = pkg.substring(BASE.length() + 1);
+        int dot = rest.indexOf('.');
+        return dot < 0 ? rest : rest.substring(0, dot);
     }
 
-    @ArchTest
-    static final ArchRule la_api_publica_no_depende_de_su_interior =
-            noClasses().that().resideInAnyPackage(BASE + ".*.dto..", BASE + ".*.exception..", BASE + ".shared..")
-                    .should().dependOnClassesThat().resideInAPackage(BASE + ".*.internal..");
-
-    @ArchTest
-    static final ArchRule los_modulos_solo_tienen_subpaquetes_conocidos =
-            classes().that().resideInAnyPackage(BASE + ".libro..", BASE + ".usuario..", BASE + ".prestamo..", BASE + ".auth..")
-                    .should().resideInAnyPackage(
-                            BASE + ".libro", BASE + ".usuario", BASE + ".prestamo", BASE + ".auth",
-                            BASE + ".*.dto..", BASE + ".*.exception..",
-                            BASE + ".*.internal.application..", BASE + ".*.internal.web..",
-                            BASE + ".*.internal.domain..", BASE + ".*.internal.persistence..",
-                            BASE + ".*.internal.seed..", BASE + ".*.internal.security..");
-
-    // ---- Dominio: inversión de dependencias, no depende de nada de infraestructura -----------------
-
-    @ArchTest
-    static final ArchRule el_dominio_solo_depende_de_si_mismo_y_de_contratos_publicos =
-            classes().that().resideInAPackage(BASE + ".*.internal.domain..")
-                    .should().onlyDependOnClassesThat().resideInAnyPackage(
-                            "java..", "lombok..", "org.mapstruct..", "org.slf4j..",
-                            "org.springframework.stereotype..", "org.springframework.transaction..",
-                            BASE + ".shared..",
-                            BASE + ".*.internal.domain..",
-                            BASE + ".*.dto..", BASE + ".*.exception..",
-                            BASE + ".libro", BASE + ".usuario", BASE + ".prestamo", BASE + ".auth");
-
-    @ArchTest
-    static final ArchRule persistence_depende_del_dominio_nunca_al_reves =
-            noClasses().that().resideInAPackage(BASE + ".*.internal.domain..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            BASE + ".*.internal.persistence..", BASE + ".*.internal.web..",
-                            BASE + ".*.internal.application..", BASE + ".*.internal.seed..",
-                            BASE + ".*.internal.security..");
-
-    @ArchTest
-    static final ArchRule la_persistencia_no_depende_de_la_web =
-            noClasses().that().resideInAPackage(BASE + ".*.internal.persistence..")
-                    .should().dependOnClassesThat().resideInAPackage(BASE + ".*.internal.web..");
-
-    @ArchTest
-    static final ArchRule la_web_no_accede_a_la_persistencia =
-            noClasses().that().resideInAPackage(BASE + ".*.internal.web..")
-                    .should().dependOnClassesThat().resideInAPackage(BASE + ".*.internal.persistence..");
-
-    @ArchTest
-    static final ArchRule la_api_publica_no_usa_la_capa_web =
-            noClasses().that().resideInAPackage(BASE + ".*.internal.application..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            BASE + ".*.internal.web..", BASE + ".*.internal.persistence..");
-
-    // ---- Independencia de frameworks en el núcleo ----------------------------------------------
-
-    @ArchTest
-    static final ArchRule el_nucleo_no_usa_spring_security_ni_jwt =
-            noClasses().that().resideInAnyPackage(
-                            BASE + ".*.internal.domain..", BASE + ".*.dto..", BASE + ".*.exception..", BASE + ".shared..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "org.springframework.security..", "io.jsonwebtoken..");
-
-    @ArchTest
-    static final ArchRule el_nucleo_no_usa_jpa_spring_data_ni_spring_mvc =
-            noClasses().that().resideInAnyPackage(
-                            BASE + ".*.internal.domain..", BASE + ".*.dto..", BASE + ".*.exception..", BASE + ".shared..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "jakarta.persistence..", "org.springframework.data..",
-                            "org.springframework.web..", "org.springframework.http..");
-
-    @ArchTest
-    static final ArchRule solo_la_web_y_config_conocen_http =
-            noClasses().that().resideOutsideOfPackages(
-                            BASE + ".*.internal.web..", BASE + ".config..", BASE + ".*.internal.security..")
-                    .should().dependOnClassesThat().resideInAnyPackage("jakarta.servlet..");
-
-    // ---- Convenciones ----------------------------------------------------------------------------
-
-    @ArchTest
-    static final ArchRule los_controladores_viven_en_web =
-            classes().that().areAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
-                    .should().resideInAPackage(BASE + ".*.internal.web..");
-
-    @ArchTest
-    static final ArchRule las_entidades_jpa_viven_en_persistence =
-            classes().that().areAnnotatedWith(jakarta.persistence.Entity.class)
-                    .should().resideInAPackage(BASE + ".*.internal.persistence..");
-
-    @ArchTest
-    static final ArchRule los_repositorios_spring_data_viven_en_persistence =
-            classes().that().areAssignableTo(org.springframework.data.repository.Repository.class)
-                    .should().resideInAPackage(BASE + ".*.internal.persistence..");
-
-    @ArchTest
-    static final ArchRule los_mappers_son_mapstruct =
-            classes().that().haveSimpleNameEndingWith("Mapper")
-                    .should().beAnnotatedWith(org.mapstruct.Mapper.class);
-
-    @ArchTest
-    static final ArchRule no_se_usa_inyeccion_por_campo =
-            noClasses().should().dependOnClassesThat()
-                    .haveFullyQualifiedName("org.springframework.beans.factory.annotation.Autowired");
+    /** Todo método público de un UseCase recibe Requester primero, salvo register y login de AuthUseCase. */
+    private static ArchCondition<JavaClass> haveRequesterAsFirstParameterInPublicMethods() {
+        return new ArchCondition<>("have Requester as the first parameter in every public method") {
+            @Override
+            public void check(JavaClass useCase, ConditionEvents events) {
+                for (JavaMethod method : useCase.getMethods()) {
+                    if (!method.getModifiers().contains(JavaModifier.PUBLIC) || method.getModifiers().contains(JavaModifier.SYNTHETIC)) {
+                        continue;
+                    }
+                    boolean publicFlow = useCase.getSimpleName().equals("AuthUseCase")
+                            && (method.getName().equals("register") || method.getName().equals("login"));
+                    if (publicFlow) {
+                        continue;
+                    }
+                    var params = method.getRawParameterTypes();
+                    boolean ok = !params.isEmpty()
+                            && params.get(0).getFullName().equals("com.example.demo.shared.Requester");
+                    if (!ok) {
+                        events.add(SimpleConditionEvent.violated(method,
+                                method.getFullName() + " no recibe Requester como primer parámetro"));
+                    }
+                }
+            }
+        };
+    }
 }
