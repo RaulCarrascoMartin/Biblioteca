@@ -2,13 +2,13 @@
 
 Aplicación web de gestión de una biblioteca: catálogo de libros, préstamos y devoluciones, usuarios con roles (`USER` / `ADMIN`) y una interfaz web ligera servida por la propia aplicación.
 
-- **Backend:** Java 21, Spring Boot 4.1, Spring MVC, Spring Data JPA, Spring Security, JWT (jjwt 0.12), Lombok.
-- **Base de datos:** MySQL en ejecución normal; H2 en memoria (modo MySQL) para los tests.
+- **Backend:** Java 21, Spring Boot 4.1, Spring MVC, Spring Data JPA, Spring Security, JWT (jjwt 0.12), MapStruct, springdoc (OpenAPI), Lombok.
+- **Base de datos:** MySQL en ejecución normal; H2 en memoria (modo MariaDB) para los tests. Esquema gestionado con **Flyway**.
 - **Frontend:** HTML + CSS + JavaScript sin framework ni paso de compilación, en `src/main/resources/static`.
-- **Arquitectura:** monolito modular (módulos `libro`, `usuario`, `prestamo`, `auth`) con fronteras verificadas por ArchUnit.
-- **Tests:** JUnit 5 + MockMvc + ArchUnit, 106 tests (87 de integración/unitarios y 19 reglas de arquitectura).
+- **Arquitectura:** monolito modular (módulos `catalog`, `users`, `loans`, `auth`) con capas `controller → usecase → domain ← persistence` dentro de cada módulo. Las fronteras las verifican **Spring Modulith** y **ArchUnit**.
+- **Tests:** JUnit 5 + Mockito + MockMvc + ArchUnit + Spring Modulith + Testcontainers (MariaDB). `./mvnw clean test` ejecuta 531 tests: 503 pasan sin Docker y 28 (los de repositorio contra MariaDB) se omiten si no hay Docker.
 
-Este documento explica **qué hace cada capa y cada clase, y por qué se tomó cada decisión**, con especial atención a la arquitectura.
+Este documento explica **qué hace cada módulo y cada capa, de qué depende y por qué se tomó cada decisión**, con especial atención a la arquitectura.
 
 ---
 
@@ -16,13 +16,14 @@ Este documento explica **qué hace cada capa y cada clase, y por qué se tomó c
 
 1. [Puesta en marcha](#1-puesta-en-marcha)
 2. [Visión general de la arquitectura](#2-visión-general-de-la-arquitectura)
-3. [Módulos y clases](#3-módulos-y-clases)
-4. [Seguridad](#4-seguridad)
-5. [Modelo de datos y reglas de negocio](#5-modelo-de-datos-y-reglas-de-negocio)
-6. [API REST](#6-api-rest)
-7. [Frontend](#7-frontend)
-8. [Estrategia de tests](#8-estrategia-de-tests)
-9. [Decisiones, compromisos y limitaciones conocidas](#9-decisiones-compromisos-y-limitaciones-conocidas)
+3. [Capas de un módulo: responsabilidades y dependencias](#3-capas-de-un-módulo-responsabilidades-y-dependencias)
+4. [Módulos y clases](#4-módulos-y-clases)
+5. [Seguridad](#5-seguridad)
+6. [Modelo de datos y reglas de negocio](#6-modelo-de-datos-y-reglas-de-negocio)
+7. [API REST](#7-api-rest)
+8. [Frontend](#8-frontend)
+9. [Estrategia de tests y reglas de arquitectura](#9-estrategia-de-tests-y-reglas-de-arquitectura)
+10. [Decisiones, compromisos y limitaciones conocidas](#10-decisiones-compromisos-y-limitaciones-conocidas)
 
 ---
 
@@ -30,7 +31,7 @@ Este documento explica **qué hace cada capa y cada clase, y por qué se tomó c
 
 ### Requisitos
 - JDK 21
-- MySQL (para ejecución normal). Los tests no lo necesitan.
+- MySQL (para ejecución normal). Los tests no lo necesitan; los de repositorio contra MariaDB usan Testcontainers y requieren Docker (sin Docker se omiten).
 
 ### Variables de configuración
 
@@ -42,13 +43,13 @@ Los secretos **nunca** se versionan; se inyectan por entorno (`application.yml` 
 | `DB_URL` | No | Por defecto `jdbc:mysql://localhost:3306/biblioteca` |
 | `DB_USERNAME` | No | Por defecto `biblioteca_app` |
 | `JWT_SECRET` | Sí | Clave de firma. Mínimo 32 bytes; la aplicación **no arranca** si es más corta |
-| `JWT_EXPIRATION_MS` | No | Vida del token, por defecto `1800000` (30 min) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | No | Si ambos existen, se crea un administrador en el primer arranque |
-| `app.seed-books=true` | No | Propiedad (no variable) que carga un catálogo de ejemplo |
+| `JWT_EXPIRATION_MS` | No | Vida del token de acceso, por defecto `900000` (15 min) |
+| `JWT_REFRESH_EXPIRATION_MS` | No | Vida del refresh token, por defecto `1209600000` (14 días) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | No | Si ambos existen, se crea un administrador en el primer arranque (idempotente) |
 
 ### Perfiles
 - `application.yml`: configuración común.
-- `application-prod.yml`: `show-sql: false`.
+- `application-prod.yml`: `show-sql: false` y **Swagger UI / OpenAPI desactivados**.
 - `application-dev.yml.example`: plantilla para desarrollo. Cópiala a `application-dev.yml` (que está en `.gitignore`) y actívala con el perfil `dev`.
 - `application-local.yml` y `.env` están **ignorados por git**: sirven para credenciales locales.
 
@@ -58,224 +59,306 @@ export DB_PASSWORD=... JWT_SECRET=...   # ≥ 32 bytes
 ./mvnw spring-boot:run
 # → http://localhost:8080
 
-./mvnw test                              # usa H2, no necesita MySQL
+./mvnw clean test                        # usa H2; no necesita MySQL
 ```
 
 ### Esquema de base de datos
-`spring.jpa.hibernate.ddl-auto` está en **`validate`**: Hibernate comprueba que el esquema coincide con las entidades pero **no lo crea ni lo modifica**. El repositorio no incluye scripts de migración, por lo que el esquema (tablas `usuarios`, `libros`, `prestamos`) debe existir previamente. La columna de revocación de tokens, si vienes de una versión anterior:
+Lo gestiona **Flyway** (`src/main/resources/db/migration`); Hibernate solo lo **valida** (`ddl-auto: validate`).
 
-```sql
-ALTER TABLE usuarios ADD COLUMN token_version INT NOT NULL DEFAULT 0;
-```
+| Migración | Contenido |
+|---|---|
+| `V1__baseline.sql` | Tablas `usuarios`, `libros`, `prestamos` |
+| `V2__seed_books.sql` | Catálogo inicial de ejemplo (idempotente por ISBN) |
+| `V3__loan_version.sql` | Columna `version` en `prestamos` (bloqueo optimista) |
+| `V4__refresh_tokens.sql` | Tabla `refresh_tokens` |
+
+Con `baseline-on-migrate` y `baseline-version: 1`, una base de datos creada antes de Flyway se toma como V1 y no se vuelve a ejecutar el esquema base.
 
 ---
 
 ## 2. Visión general de la arquitectura
 
-La aplicación es un **monolito modular**: un único artefacto desplegable (un solo proceso, una sola base de datos) dividido internamente en **módulos de negocio con fronteras explícitas**. Cada módulo es un paquete de primer nivel que agrupa *todo* lo suyo (entidad, servicio, API REST, persistencia) y solo se comunica con los demás a través de su **capa `domain`** (su API pública).
+La aplicación es un **monolito modular**: un único artefacto desplegable (un proceso, una base de datos) dividido en **módulos de negocio con fronteras explícitas**. Cada módulo es un paquete de primer nivel con **API pública** (lo que otros módulos pueden usar) y un paquete **`internal`** (privado) donde viven sus capas.
 
 ```
  com.example.demo
- ├── libro/      catálogo de libros            (domain · web · persistence · seed)
- ├── usuario/    usuarios y roles              (domain · web · persistence · seed)
- ├── prestamo/   préstamos y devoluciones      (domain · web · persistence)  ──▶ libro, usuario
- ├── auth/       registro, login, JWT          (domain · web · security)     ──▶ usuario, prestamo, shared
- ├── shared/     núcleo compartido (NotFoundException, PasswordHasher)
- └── config/     composición transversal (GlobalExceptionHandler)
+ ├── catalog/   catálogo de libros                  API: CatalogModule · dto · spi
+ ├── users/     cuentas y roles                     API: UsersModule · dto · spi
+ ├── loans/     préstamos y devoluciones            (sin API pública)
+ ├── auth/      registro, login, refresh, logout    (sin API pública)
+ ├── shared/    núcleo transversal sin Spring       (Requester, puertos técnicos, excepciones)
+ └── config/    composición técnica y seguridad     (SecurityConfig, JWT, filtros, hash, seeders)
 ```
 
 ### Dependencias entre módulos
 
 ```
-   config ──▶ auth ──▶ usuario ◀── prestamo ──▶ libro
-                                       
-   (todos ──▶ shared)
+                 ┌──────────────┐        ┌──────────────┐
+   loans ───────▶│ catalog      │        │ users        │◀────── auth
+     │           │ (API+dto+spi)│        │ (API+dto+spi)│
+     └───────────┴──────────────┘        └──────────────┘
+         loans ──▶ catalog, users           auth ──▶ users
+
+   Todos ──▶ shared          config ──▶ (conoce a todos)     nadie ──▶ config
 ```
 
-| Módulo | Depende de |
-|---|---|
-| `libro` | nadie |
-| `usuario` | `shared` |
-| `prestamo` | `libro`, `usuario`, `shared` |
-| `auth` | `usuario`, `shared` |
-| `config` | `auth`, `shared` |
+| Módulo | Puede depender de | Qué usa exactamente |
+|---|---|---|
+| `catalog` | `shared` | `Requester`, `ForbiddenException` |
+| `users` | `shared` | `Requester`, `ForbiddenException`, `PasswordHasher` |
+| `loans` | `catalog`, `users`, `shared` | `CatalogModule`, `catalog.dto`, `catalog.spi`; `UsersModule`, `users.dto`, `users.spi` |
+| `auth` | `users`, `shared` | `UsersModule`, `users.dto`; `PasswordHasher`, `TokenProvider`, `InvalidCredentialsException` |
+| `shared` | nadie | — |
+| `config` | cualquiera | Es una pieza abierta (`Type.OPEN`); **nadie depende de ella** |
 
-El grafo es **acíclico** y lo verifica `ArchitectureTest`. Todas las dependencias entre módulos apuntan a la capa `domain` del módulo destino. Nadie depende de `auth` ni de `config`.
+Estas dependencias están declaradas en el `package-info.java` de cada módulo con `@ApplicationModule(allowedDependencies = ...)` y **Spring Modulith** las verifica (`ApplicationModulesTest`). El grafo es **acíclico**.
 
-### Estructura interna de un módulo
+### API pública de un módulo
 
-Cada módulo tiene una **capa `domain`** y varios **adaptadores**:
+Un módulo solo expone tres cosas, y todo lo demás está en `internal`:
 
-```
- libro/
- ├── domain/                          ◀── DOMINIO (API pública del módulo)
- │    ├── Libro, Genero               modelo
- │    ├── LibroService                casos de uso
- │    ├── LibroRepository             puerto de salida (interfaz)
- │    ├── LibroDTO, LibroResponseDTO  contratos de E/S
- │    └── LibroEnUsoChecker           punto de extensión (SPI) para otros módulos
- │                                    ── adaptadores (interior privado) ──
- ├── web/          LibroController                                   entrada (REST)
- ├── persistence/  JpaLibroRepository, LibroRepositoryAdapter        salida (JPA)
- └── seed/         LibroSeeder                                       carga de datos de ejemplo
-```
+| Elemento | Qué es | Ejemplo |
+|---|---|---|
+| **`XModule`** (raíz del módulo) | Interfaz con las operaciones que ofrece a otros módulos. Recibe y devuelve DTO públicos, nunca el modelo interno ni sus excepciones. | `CatalogModule.reserve(id)`, `UsersModule.getByIds(ids)` |
+| **`dto`** (`@NamedInterface("dto")`) | Records de lectura/entrada para otros módulos. | `BookSummary`, `ReservationResult`, `UserSummary`, `NewUser`, `UserCredentials` |
+| **`spi`** (`@NamedInterface("spi")`) | Puntos de extensión que otros módulos implementan. | `BookInUseChecker`, `UserInUseChecker` |
 
-- **`<modulo>.domain` es la API pública**: lo único que otros módulos pueden usar (entidad, servicio, puerto, DTO, SPI, excepciones).
-- **`web`, `persistence`, `seed` y `security` son internos**: ningún otro módulo puede referenciarlos.
-- **Regla de dependencias hexagonal dentro de cada módulo:** los adaptadores dependen de `domain`, nunca al revés. `domain` no importa Spring Security, jjwt, Spring Data ni Spring MVC; lo único de Spring que conserva son `@Service` y `@Transactional`.
+`XModuleImpl` (en `internal/application`) implementa la API pública delegando en el servicio de dominio y **traduciendo excepciones a resultados** (p. ej. `ReservationResult.Status.NOT_AVAILABLE`), de modo que las excepciones internas no cruzan la frontera.
 
-### Cómo se evitan los ciclos: puntos de extensión (SPI)
-`libro` y `usuario` necesitan saber si tienen préstamos asociados (no se pueden retirar/eliminar si los tienen), pero `prestamo` ya depende de ellos. Para no crear un ciclo se **invierte la dependencia**: `libro` publica la interfaz `LibroEnUsoChecker` y `usuario` publica `UsuarioEnUsoChecker`; `prestamo` las implementa (`LibroConPrestamosChecker`, `UsuarioConPrestamosChecker`) como beans, y los servicios reciben `List<...Checker>` por constructor. `libro` y `usuario` ignoran por completo la existencia de `prestamo`.
+`loans` y `auth` **no publican API** porque ningún otro módulo los invoca directamente.
+
+### Relaciones entre módulos: solo por ID
+
+`loans` **no tiene relaciones JPA** con libros ni usuarios: la entidad `LoanEntity` guarda solo `bookId` y `userId`. Cuando necesita los datos, los pide a `CatalogModule.getByIds(...)` y `UsersModule.getByIds(...)` (en lote, sin N+1) y compone el DTO. Así cada módulo podría tener su propio esquema o extraerse a un servicio.
+
+### Cómo se evitan los ciclos: SPI
+
+`catalog` y `users` necesitan saber si un libro/usuario tiene préstamos (para impedir borrarlo), pero `loans` ya depende de ellos. Se **invierte la dependencia**: `catalog` publica `BookInUseChecker` y `users` publica `UserInUseChecker`; `loans` los implementa (`BookWithLoansChecker`, `UserWithLoansChecker`, en `loans/internal/application`) como beans, y los servicios reciben `List<...Checker>` por constructor. `catalog` y `users` ignoran por completo la existencia de `loans`.
+
+Es un **veto síncrono** y no un evento, a propósito: el resultado condiciona el borrado y debe decidirse dentro de la misma transacción. Es la única excepción a la comunicación por eventos, y por eso existe el paquete `spi`.
 
 ### Por qué esta arquitectura
-- **Cohesión por dominio:** todo lo relativo a libros está en `libro/`; un cambio funcional toca un solo módulo.
-- **Fronteras comprobables:** las reglas de dependencia no son una convención oral, las verifica `ArchitectureTest` en cada build (ver [sección 8](#8-estrategia-de-tests)).
-- **Camino de evolución:** cada módulo podría extraerse a un servicio independiente si algún día hiciera falta, porque solo se acopla a los demás mediante su API pública. Mientras tanto se conserva la simplicidad operativa de un único despliegue y transacciones locales (p. ej. el bloqueo pesimista entre libro y préstamo).
-- **Frontera de seguridad clara:** todo lo que depende de Spring Security o de jjwt vive en `auth/security`; los módulos de negocio no importan ni Spring Security ni jjwt.
+- **Cohesión por dominio:** todo lo relativo a libros está en `catalog/`; un cambio funcional toca un solo módulo.
+- **Fronteras comprobables:** no son una convención oral; Modulith y ArchUnit rompen el build si alguien las viola (ver [sección 9](#9-estrategia-de-tests-y-reglas-de-arquitectura)).
+- **Camino de evolución:** como los módulos solo se acoplan por API pública, DTO e IDs, podrían extraerse a servicios independientes. Mientras tanto se conserva un único despliegue y transacciones locales (p. ej. `loans` reserva el libro y crea el préstamo en una sola transacción).
+- **Seguridad en un solo sitio:** Spring Security y jjwt solo se usan en `config`; los módulos de negocio no los importan.
 
 ### Inyección de dependencias
-Toda la aplicación usa **inyección por constructor** (`@RequiredArgsConstructor` de Lombok sobre campos `private final`), sin `@Autowired` en ningún sitio (lo comprueba un test de arquitectura). Las dependencias son explícitas y obligatorias, las clases son inmutables tras construirse, se pueden instanciar en tests sin contenedor y se evitan dependencias circulares ocultas.
+Inyección **por constructor**, sin `@Autowired` en ningún sitio (lo comprueba un test de arquitectura). Las dependencias son explícitas, las clases se instancian en tests sin contenedor y se evitan ciclos ocultos.
 
 ---
 
-## 3. Módulos y clases
+## 3. Capas de un módulo: responsabilidades y dependencias
 
-Paquete raíz: `com.example.demo`. Cada módulo se describe con su capa `domain` (API pública) y sus adaptadores (interior). Las clases sin prefijo están en `<modulo>/domain/`.
+Estructura de cada módulo (ejemplo `catalog`; `users`, `loans` y `auth` siguen el mismo esquema):
 
-### 3.1 `shared/` — núcleo compartido
-Contiene solo lo que necesitan varios módulos y no pertenece a ninguno. **No depende de ningún módulo.**
+```
+ catalog/
+ ├── CatalogModule                     ┐
+ ├── dto/        BookSummary, …        │ API PÚBLICA (otros módulos)
+ ├── spi/        BookInUseChecker      ┘
+ └── internal/                         PRIVADO
+      ├── application/   CatalogModuleImpl
+      ├── controller/    BookHttpApi · BookController
+      │    ├── dto/      BookRequest, BookResponse
+      │    ├── handler/  BookExceptionHandler
+      │    └── mapper/   BookWebMapper
+      ├── usecase/       BookUseCase
+      ├── domain/
+      │    ├── model/       Book, Isbn, Genre
+      │    ├── dto/         BookDto, SaveBookDto
+      │    ├── mapper/      BookMapper
+      │    ├── service/     BookService, BookServiceImpl
+      │    ├── repository/  BookRepository            (interfaz)
+      │    └── exception/   BookNotFoundException, …
+      └── persistence/
+           ├── dao/entity/            BookEntity
+           ├── dao/impl/jpa/          BookSpringDataRepository
+           └── repository/
+                ├── impl/             BookRepositoryImpl
+                └── mapper/           BookPersistenceMapper
+```
 
-| Clase | Responsabilidad |
-|---|---|
-| `NotFoundException` | Recurso inexistente → 404. |
+### Dos flujos de entrada
 
-Las reglas de negocio violadas se expresan con excepciones propias de cada módulo (`IsbnDuplicadoException`, `LibroConPrestamosException`, `LibroNoDisponibleException`, `PrestamoYaDevueltoException`, `AutoEliminacionException`, `UsuarioConPrestamosException` → 409; `EmailYaRegistradoException` → 400) que `GlobalExceptionHandler` traduce a HTTP.
+```
+ HTTP:        Controller ──▶ UseCase ──▶ Service ──▶ Repository (interfaz) ◀── RepositoryImpl ──▶ DAO/JPA
+ Otro módulo: XModule ──▶ XModuleImpl ──▶ Service ──▶ Repository (interfaz) ◀── RepositoryImpl ──▶ DAO/JPA
+```
 
-| `PasswordHasher` | Puerto: «hashear una contraseña». Lo usan `auth` (registro) y `usuario` (cambio de clave, administrador inicial). Implementado en `auth/security`. |
+La lógica de negocio vive en el **servicio de dominio**; HTTP y otros módulos son solo dos puertas de entrada distintas.
 
-### 3.2 `libro/` — catálogo
-| Clase | Responsabilidad |
-|---|---|
-| `Libro`, `Genero` | Entidad JPA y enumeración de géneros (guardada como `STRING`, no ordinal, para que reordenar no corrompa datos). `equals`/`hashCode` solo por `id`. |
-| `LibroRepository` | Puerto con solo las operaciones que el dominio necesita. `findByIdWithLock` documenta que debe usarse dentro de una transacción: el bloqueo pesimista forma parte del contrato. |
-| `LibroService` | Consulta, alta y edición del catálogo (valida ISBN único y devuelve `LibroResponseDTO`). Impide retirar un libro «en uso» consultando los `LibroEnUsoChecker` registrados. |
-| `LibroEnUsoChecker` | SPI: otros módulos declaran si un libro les impide ser retirado. |
-| `LibroDTO`, `LibroResponseDTO` | Entrada (validada) y salida del API. |
-| `web/LibroController` | CRUD, delegando en el servicio. Lectura para cualquier autenticado; crear/editar/borrar solo `ADMIN` (`@PreAuthorize`). 409 si el ISBN existe. |
-| `persistence/*` | `JpaLibroRepository` (Spring Data, con `@Lock(PESSIMISTIC_WRITE)`) y `LibroRepositoryAdapter` (implementa el puerto). |
-| `seed/LibroSeeder` | `CommandLineRunner` condicionado a `app.seed-books=true`; carga idempotente por ISBN. |
+### Responsabilidades y dependencias por capa
 
-### 3.3 `usuario/` — usuarios y roles
-| Clase | Responsabilidad |
-|---|---|
-| `Usuario` | Entidad. `rol` es un `String` (`USER`/`ADMIN`) por simplicidad. `tokenVersion` permite invalidar todos los tokens (ver [Seguridad](#4-seguridad)). |
-| `UsuarioRepository` | Puerto de acceso a datos. |
-| `UsuarioService` | Consulta (devuelve `UsuarioResponseDTO`), actualización (normaliza el email; si cambia la contraseña **incrementa `tokenVersion`**), revocación de sesiones y borrado (bloqueado si es el propio solicitante o si algún `UsuarioEnUsoChecker` lo indica). |
-| `UsuarioEnUsoChecker` | SPI análogo al de `libro`. |
-| `UsuarioDTO`, `UsuarioUpdateDTO`, `UsuarioResponseDTO` | Contratos. `UsuarioDTO` no tiene campo `rol`: defensa contra *mass assignment*. La respuesta **nunca incluye la contraseña**. La contraseña admite máximo 72 caracteres (límite de bcrypt). |
-| `web/UsuarioController` | Perfil propio (`/me`), consulta/edición (admin o dueño), borrado (solo admin, nunca el propio) y revocación de sesiones. |
-| `persistence/*` | Repositorio JPA y adaptador. |
-| `seed/AdminSeeder` | Crea el administrador inicial desde configuración (`ADMIN_EMAIL`/`ADMIN_PASSWORD`) si no existe. Sin credenciales no hace nada. |
+| Capa | Responsabilidad | Puede usar | **No** puede usar |
+|---|---|---|---|
+| **`controller`** | Contrato HTTP (`XHttpApi` con OpenAPI, `XController` que lo implementa), DTO web (`*Request`/`*Response`), mappers web, validación de formato (`@Valid`), traducción de excepciones a HTTP (`handler`). | `usecase`, sus DTO y mappers, `shared` | `service`, `persistence`, `repository`, Spring Security |
+| **`usecase`** | **Autorización** (¿puede este `Requester` hacer esto?) y orquestación. Cada método público recibe `Requester` como primer parámetro (salvo `register`, `login` y `refresh` de auth). | `domain.service`, `shared` | `controller`, `persistence`, `repository`, otros `UseCase` |
+| **`application`** | Implementa la API pública del módulo (`XModuleImpl`) y los adaptadores SPI (`loans`). | `domain` (servicio), DTO públicos | `controller`, `usecase`, `persistence` |
+| **`domain`** | **Reglas de negocio.** Modelo inmutable con invariantes (`Book`, `Isbn`, `Email`, `Loan`…), servicio (`XService` interfaz + `XServiceImpl`), puerto `XRepository` (interfaz), DTO internos (`*Dto`), mapper del dominio y excepciones propias. | `shared` y, en `loans`/`auth`, la API pública de otros módulos | `persistence`, `controller`, `usecase`, `application`; tampoco `jakarta.persistence`, `jakarta.validation`, Spring Web/Data/Security, servlet ni jjwt. Solo conserva `@Service` y `@Transactional`. |
+| **`persistence`** | Implementa `XRepository` (`XRepositoryImpl`), entidad JPA (`XEntity`), repositorio Spring Data (`XSpringDataRepository`) y mapper modelo⇄entidad (`XPersistenceMapper`). | `domain` (modelo y puerto) | `controller`, `usecase`, `application` |
 
-### 3.4 `prestamo/` — préstamos y devoluciones
-Depende de `libro` y `usuario`.
+### Dónde se decide la autorización
+- **En el `usecase`**, con el `Requester` (`isAdmin()`, `isOwner(id)`), lanzando `ForbiddenException` (→ 403). No se usa `@PreAuthorize` en los módulos de negocio: solo `config` puede usar seguridad por método o `SecurityContextHolder` (lo verifica ArchUnit).
+- `config` convierte el principal autenticado en un `Requester` (`RequesterArgumentResolver`) y los controladores lo reciben como parámetro, sin importar nada de Spring Security.
+- `SecurityConfig` solo decide qué rutas son públicas y exige autenticación en el resto.
 
-| Clase | Responsabilidad |
-|---|---|
-| `Prestamo` | Entidad con relaciones a `Libro` y `Usuario`. Activo mientras `fechaDevolucion` es nula. |
-| `PrestamoRepository` | Puerto. |
-| `PrestamoService` | **Núcleo de negocio.** `crearPrestamo` y `devolverLibro` son `@Transactional` y bloquean la fila del libro (`SELECT … FOR UPDATE`) para que dos peticiones simultáneas no presten el mismo ejemplar ni lo «devuelvan» dos veces. Rechaza (409) devolver un préstamo ya devuelto. |
-| `LibroConPrestamosChecker`, `UsuarioConPrestamosChecker` | Implementaciones de los SPI de `libro` y `usuario`: conservan el historial impidiendo borrar libros/usuarios con préstamos. |
-| `PrestamoResponseDTO` | Salida del API. |
-| `web/PrestamoAuthz` (`@prestamoAuthz`) | Bean usado en `@PreAuthorize` («¿es dueño de este préstamo?»); recibe el email por parámetro (`authentication.name`), así que no depende de Spring Security ni de `auth`. |
-| `web/PrestamoController` | Crear, devolver, listar los propios (`/mios`), consultar por id (admin o dueño). Traduce excepciones de dominio a 404/409. |
-| `persistence/*` | Repositorio JPA y adaptador. |
-
-### 3.5 `auth/` — autenticación y seguridad
-Depende de `usuario` y `shared`. **Es el único módulo que conoce Spring Security y jjwt** (en su subpaquete `security`; su `domain` es independiente de ellos).
-
-| Clase | Responsabilidad |
-|---|---|
-| `AuthService` | Registro (normaliza el email; si ya existía devuelve vacío sin revelarlo), login (autentica, obtiene la `tokenVersion` y emite el token) y revocación de tokens. |
-| `CredentialsAuthenticator`, `TokenService`, `TokenRevocation` | Puertos: comprobar credenciales, emitir token, revocar token. |
-| `InvalidCredentialsException`, `LoginDTO` | Error de credenciales (→ 401) y DTO de login. |
-| `web/AuthController` | `/api/auth/*`: registro, login y logout. Gestiona la cookie `jwt_token` (HttpOnly, SameSite=Strict, `Secure` en HTTPS). En logout revoca el token tanto de la cabecera como de la cookie. |
-| `security/SecurityConfig` | Cadena de filtros, rutas públicas, sesión sin estado, cabeceras (CSP, HSTS, X-Frame-Options…), 401 en JSON, `PasswordEncoder` BCrypt. |
-| `security/JwtAuthFilter` | Extrae el token (cabecera o cookie), comprueba revocación, firma/emisor/audiencia/expiración **y que la versión coincida**, y puebla el `SecurityContext`. |
-| `security/JwtService` | Genera y valida JWT. Implementa `TokenService`. Falla al arrancar si la clave es corta. |
-| `security/CustomUserDetailsService`, `AuthUser` | Carga el usuario desde `UsuarioRepository`; `AuthUser` transporta la `tokenVersion`. |
-| `security/TokenDenylistService` | Lista en memoria de tokens revocados con caducidad. Implementa `TokenRevocation`. |
-| `security/RateLimitFilter` | Limita login (5/min) y registro (3/min) por IP. |
-| `security/AuthzHelper` (`@authz`) | Bean usado en `@PreAuthorize` de `usuario` («¿es dueño de este usuario?»). Se referencia por nombre desde SpEL, por lo que `usuario` no tiene dependencia de compilación con `auth`. |
-| `security/SpringPasswordHasher`, `SpringCredentialsAuthenticator` | Adaptadores de `PasswordHasher` y `CredentialsAuthenticator` sobre Spring Security. |
-
-### 3.6 `config/`
-| Clase | Responsabilidad |
-|---|---|
-| `GlobalExceptionHandler` | `@RestControllerAdvice` que convierte excepciones en `{"error": "..."}` con el código adecuado y **oculta los detalles internos** (los 500 devuelven un mensaje genérico). Vive aquí porque conoce excepciones de varios módulos; nadie depende de `config`. |
+### Convenciones de nombres
+`XHttpApi`/`XController` (HTTP) · `XRequest`/`XResponse` (DTO web) · `XDto` (DTO de dominio o públicos del módulo) · `XUseCase` · `XService`/`XServiceImpl` · `XRepository` (puerto) · `XRepositoryImpl` · `XEntity` · `XSpringDataRepository` · `XPersistenceMapper` · `XMapper`/`XWebMapper` (MapStruct) · `XModule`/`XModuleImpl` · `XInUseChecker` (SPI).
 
 ---
 
-## 4. Seguridad
+## 4. Módulos y clases
 
-Las decisiones de esta sección son las que más peso tienen en el diseño.
+Paquete raíz: `com.example.demo`.
 
-### Autenticación: JWT en cookie HttpOnly
-- El token viaja en una cookie `HttpOnly` (inaccesible desde JavaScript, lo que reduce el impacto de un XSS), `SameSite=Strict` y `Secure` en HTTPS. El frontend **no almacena el token**: solo guarda un indicador de «hay sesión» en `localStorage`.
-- La API también acepta `Authorization: Bearer` para clientes que no son el navegador (Postman, scripts). El login devuelve el token en el cuerpo por ese motivo.
-- **CSRF está desactivado** de forma deliberada: la API es sin estado y la cookie usa `SameSite=Strict`, que impide que otros sitios la envíen.
+### 4.1 `shared/` — núcleo transversal
+Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni de Spring/Jakarta/Lombok** (ArchUnit).
 
-### Revocación de tokens (dos mecanismos complementarios)
-1. **Lista de denegación (`TokenDenylistService`)** para el *logout* de una sesión concreta. Se guarda la firma del token hasta su caducidad (30 min) y se limpia de forma oportunista al crecer.
-2. **Versión de token por usuario (`tokenVersion`)** para invalidar *todos* los tokens de un usuario a la vez. El token lleva la versión en el claim `tv`; si no coincide con la de la base de datos, se rechaza. Se incrementa al **cambiar la contraseña** y mediante `POST /api/usuarios/{id}/revocar-sesiones` (admin o el propio usuario).
+| Clase | Responsabilidad |
+|---|---|
+| `Requester` | Quién inicia un flujo: `id` + roles. `isAdmin()`, `isOwner(id)`. Lo usan los casos de uso para autorizar. |
+| `AuthenticatedPrincipal` | Identidad que sale de un token de acceso validado (`userId` + roles con prefijo `ROLE_`). |
+| `PasswordHasher` | Puerto técnico: `hash` / `matches`. Implementado en `config` (BCrypt). |
+| `TokenProvider` | Puerto técnico: `generate(userId, roles)` y `validate(token)`. Implementado en `config` (JWT). |
+| `ForbiddenException` | Sin permiso → 403. |
+| `InvalidCredentialsException` | Credenciales/refresh no válidos → 401. No distingue email inexistente de contraseña errónea. |
 
-**Por qué dos mecanismos:** la lista de denegación resuelve «cerrar *esta* sesión» y es barata, pero no sirve para «cerrar *todas*» (no se conocen los tokens emitidos). La versión por usuario sí, sin estado en memoria y válida tras reiniciar o con varias instancias.
+### 4.2 `catalog/` — catálogo de libros
+**Depende de:** `shared`.
 
-> Corrección relevante: el logout original solo revocaba el token de la cabecera `Authorization`, pero el navegador usa la cookie, así que el token seguía siendo válido tras cerrar sesión. Ahora también se revoca el de la cookie (hay un test).
+| Elemento | Responsabilidad |
+|---|---|
+| `CatalogModule` | API pública: `getById`, `getByIds`, `reserve(id)` y `release(id)` (con bloqueo; devuelven `ReservationResult` con `OK`, `NOT_FOUND`, `NOT_AVAILABLE` o `ALREADY_AVAILABLE`). |
+| `dto/` | `BookSummary`, `Genre`, `ReservationResult`. |
+| `spi/BookInUseChecker` | Veto síncrono: otros módulos indican si un libro les impide ser retirado. |
+| `domain/model` | `Book` (inmutable, con invariantes), `Isbn` (valida y normaliza el ISBN), `Genre`. |
+| `domain/service` | `BookServiceImpl`: consulta, alta y edición (ISBN único), `reserve`/`release` y borrado (consulta a todos los `BookInUseChecker`). |
+| `usecase/BookUseCase` | Lectura para cualquier autenticado; crear/editar/borrar solo `ADMIN`. |
+| `controller` | `BookHttpApi` + `BookController` (`/api/libros`), `BookRequest`/`BookResponse`, `BookExceptionHandler`. |
+| `persistence` | `BookEntity`, `BookSpringDataRepository` (bloqueo pesimista `PESSIMISTIC_WRITE` para reservar), `BookRepositoryImpl`. |
+
+### 4.3 `users/` — cuentas y roles
+**Depende de:** `shared`.
+
+| Elemento | Responsabilidad |
+|---|---|
+| `UsersModule` | API pública: `getById`, `getByEmail`, `getByIds`, `register` (rol `USER`; vacío si el email existe), `getCredentials` (con hash, para `auth`) y `ensureAdmin`. |
+| `dto/` | `UserSummary` (nunca incluye contraseña), `NewUser`, `UserCredentials` (su `toString` oculta el hash). |
+| `spi/UserInUseChecker` | Veto síncrono para el borrado. |
+| `domain/model` | `User` (inmutable; `rename`, `changeEmail`, `changePassword`, `revokeSessions`), `Email` (valida y normaliza a minúsculas), `Role`. `tokenVersion` se incrementa al cambiar la contraseña o revocar sesiones. |
+| `domain/service` | `UserServiceImpl`: edición con comprobación de email duplicado, revocación de sesiones y borrado (bloqueado para uno mismo o si algún `UserInUseChecker` lo veta). |
+| `usecase/UserUseCase` | Listar y borrar solo `ADMIN`; `me` para autenticados; consulta, edición y revocación para `ADMIN` o dueño. |
+| `controller` | `UserHttpApi` + `UserController` (`/api/usuarios`). `UserUpdateRequest` no tiene campo `rol` (defensa contra *mass assignment*). |
+| `persistence` | `UserEntity`, repositorio Spring Data y `UserRepositoryImpl`. |
+
+### 4.4 `loans/` — préstamos y devoluciones
+**Depende de:** `catalog` (raíz, `dto`, `spi`), `users` (raíz, `dto`, `spi`) y `shared`. **Sin API pública.**
+
+| Elemento | Responsabilidad |
+|---|---|
+| `domain/model/Loan` | Modelo inmutable con solo `bookId` y `userId`. `Loan.open(...)` y `markReturned(...)`; activo mientras no hay fecha de devolución. |
+| `domain/service/LoanServiceImpl` | **Núcleo de negocio.** `create` y `returnLoan` son `@Transactional`: llaman a `CatalogModule.reserve/release` (que bloquea la fila del libro) y guardan el préstamo; si algo falla, todo se revierte. Traduce `ReservationResult` a excepciones de `loans`. Compone los DTO consultando `catalog` y `users` **en lote**. |
+| `domain/service/LoanQueryService` | Consultas `existsByBookId` / `existsByUserId`. Separado de `LoanService` para que los checkers no cierren ciclos de beans. |
+| `application/BookWithLoansChecker`, `UserWithLoansChecker` | Implementan los SPI de `catalog` y `users`: conservan el historial impidiendo borrar libros y usuarios con préstamos. |
+| `usecase/LoanUseCase` | Listar todos: `ADMIN`. Propios y crear: autenticado. Ver/devolver uno: `ADMIN` o dueño. |
+| `controller` | `LoanHttpApi` + `LoanController` (`/api/prestamos`), `LoanResponse`, `LoanBookResponse`, `LoanExceptionHandler`. |
+| `persistence` | `LoanEntity` (con `@Version` para bloqueo optimista; solo ids), repositorio Spring Data y `LoanRepositoryImpl`. |
+
+### 4.5 `auth/` — registro, login, refresh y logout
+**Depende de:** `users` (raíz y `dto`) y `shared`. **Sin API pública.** No conoce Spring Security ni jjwt: la tecnología vive en `config`.
+
+| Elemento | Responsabilidad |
+|---|---|
+| `domain/service/AuthServiceImpl` | `register` (delegando en `UsersModule`), `login` (comprueba el hash con `PasswordHasher`, igual de costoso exista o no el usuario), `refresh` (rota el refresh token) y `logout` (revoca). Emite el par acceso + refresh. |
+| `domain/model/RefreshToken` | Hash del token, `userId`, `tokenVersion`, caducidad y revocación. |
+| `domain/repository/RefreshTokenRepository` | Puerto; implementado en `persistence` (`RefreshTokenEntity`, tabla `refresh_tokens`). |
+| `usecase/AuthUseCase` | Orquestación. `register`, `login` y `refresh` son públicos; `logout` recibe `Requester`. |
+| `controller` | `AuthHttpApi` + `AuthController` (`/api/auth`), DTO web (`LoginRequest`, `LoginResponse`, `RefreshRequest`, `LogoutRequest`…) y `AuthExceptionHandler`. |
+
+### 4.6 `config/` — composición técnica y seguridad
+Pieza **abierta**. Nadie depende de ella; ella puede conocer a los demás. Es el único sitio con Spring Security, jjwt y la API servlet.
+
+| Clase | Responsabilidad |
+|---|---|
+| `SecurityConfig` | Cadena de filtros: sin estado, CSRF/form/basic desactivados, rutas públicas, cabeceras (CSP, HSTS, X-Frame-Options, Referrer-Policy), 401/403 en JSON. Activa `@EnableMethodSecurity`. |
+| `JwtAuthenticationFilter` | Lee `Authorization: Bearer`, valida el token con `TokenProvider` y puebla el `SecurityContext` con un `AuthenticatedPrincipal`. |
+| `JwtTokenProvider` | Implementa `TokenProvider` (jjwt): firma, emisor, audiencia y caducidad. Falla al arrancar si la clave es corta. |
+| `BcryptPasswordHasher`, `PasswordEncoderConfig` | Implementan `PasswordHasher` con BCrypt. |
+| `RequesterArgumentResolver`, `WebConfig` | Convierten el principal autenticado en el `Requester` que reciben los controladores. |
+| `RateLimitFilter` | Limita login (5/min) y registro (3/min) por IP. |
+| `JsonAuthenticationEntryPoint`, `JsonAccessDeniedHandler` | Respuestas 401/403 en JSON. |
+| `GlobalExceptionHandler` | `@RestControllerAdvice` de último recurso (`ProblemDetail`): validación, JSON mal formado, `ForbiddenException`, integridad de datos, y un 500 genérico que **oculta los detalles internos**. Los errores de negocio los traduce cada módulo con su `handler`. |
+| `AdminSeeder` | `CommandLineRunner` que llama a `UsersModule.ensureAdmin` con `ADMIN_EMAIL`/`ADMIN_PASSWORD` si existen. |
+| `ClockConfig` | Bean `Clock` inyectable (tests deterministas). |
+
+---
+
+## 5. Seguridad
+
+### Autenticación: JWT de acceso + refresh token opaco
+- **Login** devuelve un **par de tokens**:
+  - **Acceso:** JWT firmado (claims `sub` = id de usuario y `roles`), de vida corta (15 min por defecto). Se envía en `Authorization: Bearer`.
+  - **Refresh:** cadena aleatoria opaca de 32 bytes, vida de 14 días. En base de datos solo se guarda su **hash SHA-256**, nunca el valor.
+- **No hay cookies ni sesión de servidor.** La API es sin estado, por eso **CSRF está desactivado** de forma deliberada: no hay credencial ambiental que un sitio ajeno pueda reutilizar.
+- El filtro JWT no consulta la base de datos: los roles son los del momento de la emisión del token.
+
+### Rotación y detección de reutilización del refresh
+- `POST /api/auth/refresh` **rota** el refresh: revoca el recibido y emite un par nuevo.
+- Si se presenta un refresh **ya revocado** (rotado o cerrado), se asume robo y se **revocan todas las sesiones del usuario**.
+- Un refresh caducado, desconocido o cuya `tokenVersion` no coincide con la del usuario → 401.
+- `POST /api/auth/logout` revoca el refresh indicado.
+
+### Invalidar todas las sesiones de un usuario (`tokenVersion`)
+Cada usuario tiene una `tokenVersion`. Cada refresh guarda la versión con la que se emitió. Se incrementa al **cambiar la contraseña** y con `POST /api/usuarios/{id}/revocar-sesiones` (admin o el propio usuario): desde entonces ningún refresh anterior sirve. **Los tokens de acceso ya emitidos siguen siendo válidos hasta que caducan** (máximo 15 min); es el coste de no consultar la base de datos en cada petición.
 
 ### Prevención de enumeración de usuarios
-- Login con credenciales erróneas o usuario inexistente → siempre el mismo 401 «Credenciales incorrectas».
-- Registro con un email ya existente → 200 sin cuerpo (idéntico en apariencia a un registro correcto); el frontend entonces intenta el login.
+- Login con credenciales erróneas o usuario inexistente → siempre el mismo 401, y el coste del hash es el mismo (hay un hash ficticio para el caso «no existe»).
+- Registro con un email ya existente → 200 sin cuerpo, indistinguible de un registro correcto.
 
 ### Otras medidas
-- Contraseñas con BCrypt; nunca se devuelven en ningún DTO.
-- Límite de intentos en login y registro (rate limiting).
-- Emails normalizados a minúsculas para que `Ana@x.es` y `ana@x.es` no sean cuentas distintas.
-- Validación y límites de tamaño en todas las entradas; mensajes de error genéricos hacia el cliente.
+- Contraseñas con BCrypt; nunca se devuelven en ningún DTO y los `toString` de los DTO con credenciales las ocultan.
+- Rate limiting en login y registro.
+- Emails normalizados a minúsculas.
+- Registro público siempre con rol `USER`; el rol no se puede enviar en ninguna petición.
 - Un administrador no puede eliminar su propia cuenta.
 - CSP restrictiva (`default-src 'self'`; solo se permite Google Fonts), HSTS y `X-Frame-Options: DENY`.
+- Swagger UI y OpenAPI desactivados en el perfil `prod`.
 
 ---
 
-## 5. Modelo de datos y reglas de negocio
+## 6. Modelo de datos y reglas de negocio
 
 ```
-Usuario (1) ──< Prestamo >── (1) Libro
+usuarios (1) ──< prestamos >── (1) libros          prestamos guarda solo ids (sin FK de JPA entre módulos)
+usuarios (1) ──< refresh_tokens                    (por user_id)
 ```
 
-| Entidad | Campos principales |
+| Tabla | Campos principales |
 |---|---|
-| `Usuario` | `id`, `nombre`, `email` (único), `password` (hash), `rol`, `tokenVersion` |
-| `Libro` | `id`, `titulo`, `autor`, `isbn` (único), `disponible`, `genero` |
-| `Prestamo` | `id`, `libro`, `usuario`, `fechaPrestamo`, `fechaDevolucion` (nula mientras está activo) |
+| `usuarios` | `id`, `nombre`, `email` (único), `password` (hash), `rol`, `token_version` |
+| `libros` | `id`, `titulo`, `autor`, `isbn` (único), `disponible`, `genero` |
+| `prestamos` | `id`, `libro_id`, `usuario_id`, fechas de préstamo y devolución (nula mientras está activo), `version` |
+| `refresh_tokens` | `token_hash`, `user_id`, `token_version`, caducidad, revocación |
 
 Reglas clave:
-- Un libro solo puede estar prestado una vez a la vez. El bloqueo pesimista sobre el libro lo garantiza incluso con peticiones concurrentes.
-- Un préstamo está **activo** mientras `fechaDevolucion` es nula; devolverlo dos veces da 409.
-- Se conserva el historial: no se puede borrar un libro ni un usuario con préstamos registrados (409 con mensaje claro).
+- Un libro solo puede estar prestado una vez a la vez. `reserve` bloquea la fila del libro (`SELECT … FOR UPDATE`) dentro de la transacción del préstamo, incluso con peticiones concurrentes.
+- Devolver un préstamo ya devuelto da 409. Una devolución concurrente la detecta el `@Version` del préstamo y revierte también la liberación del libro.
+- Se conserva el historial: no se puede borrar un libro ni un usuario con préstamos (409).
 - `ISBN` único (409 al duplicarlo); el email también es único.
 
 ---
 
-## 6. API REST
+## 7. API REST
 
-Todas las rutas salvo `/api/auth/**` y los estáticos requieren autenticación.
+Todas las rutas salvo `POST /api/auth/{register,login,refresh}` y los estáticos requieren un token de acceso. Con el perfil `dev`/`local` la documentación OpenAPI está en `/swagger-ui.html`.
 
 | Método y ruta | Acceso | Descripción |
 |---|---|---|
 | `POST /api/auth/register` | Público | Alta de lector (rol `USER`) |
-| `POST /api/auth/login` | Público | Devuelve el token y establece la cookie |
-| `POST /api/auth/logout` | Público | Revoca el token y limpia la cookie |
+| `POST /api/auth/login` | Público | Devuelve el par de tokens |
+| `POST /api/auth/refresh` | Público | Rota el refresh y devuelve un par nuevo |
+| `POST /api/auth/logout` | Autenticado | Revoca el refresh indicado |
 | `GET /api/libros` · `GET /api/libros/{id}` | Autenticado | Consulta del catálogo |
 | `POST /api/libros` | ADMIN | Alta de libro |
 | `PUT /api/libros/{id}` | ADMIN | Edición |
@@ -288,82 +371,92 @@ Todas las rutas salvo `/api/auth/**` y los estáticos requieren autenticación.
 | `GET /api/usuarios` | ADMIN | Listado |
 | `GET /api/usuarios/me` | Autenticado | Perfil propio |
 | `GET/PUT /api/usuarios/{id}` | ADMIN o dueño | Consulta / edición |
-| `POST /api/usuarios/{id}/revocar-sesiones` | ADMIN o dueño | Invalida todos los tokens del usuario |
-| `DELETE /api/usuarios/{id}` | ADMIN | Borrado (409 si tiene préstamos o es uno mismo) |
+| `POST /api/usuarios/{id}/revocar-sesiones` | ADMIN o dueño | Invalida los refresh tokens del usuario |
+| `DELETE /api/usuarios/{id}` | ADMIN | Borrado (409 si tiene préstamos; no permite borrarse a uno mismo) |
 
-Los errores devuelven `{"error": "mensaje"}` con el código apropiado (400 validación, 401 no autenticado, 403 sin permiso, 404, 409 conflicto, 429 demasiadas peticiones, 500 genérico). El directorio `postman/` solo contiene variables globales del espacio de trabajo, no una colección de peticiones.
+Los errores son `ProblemDetail` (RFC 9457) con una propiedad `error` que repite el mensaje (y `errors` con la lista en validaciones). Códigos: 400 validación, 401 no autenticado o credenciales/refresh inválidos, 403 sin permiso, 404 no existe, 409 conflicto, 422 invariante de dominio incumplida, 429 demasiadas peticiones, 500 genérico. El directorio `postman/` solo contiene variables globales del espacio de trabajo, no una colección de peticiones.
 
 ---
 
-## 7. Frontend
+## 8. Frontend
 
 Ubicación: `src/main/resources/static`. Spring Boot lo sirve directamente, sin servidor aparte ni paso de compilación.
 
 | Archivo | Responsabilidad |
 |---|---|
 | `index.html` | HTML semántico y accesible (skip-link, landmarks, tabs ARIA, `aria-live`/`aria-busy`). Carga los CSS y `js/main.js` como módulo. |
-| `js/api.js` | **Único** sitio con `fetch`: servicio HTTP con `ApiError`, normalización de errores, contador de peticiones (evento `api:carga`) y evento `sesion:caducada` ante un 401 (salvo en `/api/auth/`). |
-| `js/state.js` | Estado único (usuario, préstamos, libros, vista, carga) con suscripción y derivados memoizados (`activos`, `devueltos`, `disponibles`, `esAdmin`). |
-| `js/views/*.js` | Render: estado a HTML por bloque (cabecera, acceso, estantería, catálogo, historial, admin). |
+| `js/api.js` | **Único** sitio con `fetch`. Guarda el par de tokens en `sessionStorage`, envía el acceso en `Authorization: Bearer` y, ante un 401, intenta **renovar con el refresh una sola vez** antes de dar la sesión por caducada. Expone `ApiError`, un contador de peticiones (evento `api:carga`) y el evento `sesion:caducada`. |
+| `js/state.js` | Estado único (usuario, préstamos, libros, vista, carga) con suscripción y derivados memoizados. |
+| `js/views/*.js` | Render de estado a HTML por bloque: `header`, `auth`, `shelf`, `catalog`, `history`, `admin`. |
 | `js/acciones.js`, `js/events.js` | Orquestación contra la API y delegación de eventos (`data-solicitar`, `data-devolver`, `data-retirar`, `data-tab`). |
 | `js/dom.js`, `js/covers.js` | Helpers (`esc` anti-XSS, toast) y generación de cubiertas/lomos y fechas. |
 | `js/main.js` | Punto de entrada: suscribe el render y arranca. |
-| `css/tokens.css`, `base.css`, `layout.css`, `components/*.css` | Tokens como custom properties (`--bib-sys-*` de sistema y por componente), globales, layout y un fichero por bloque BEM (`bloque__elemento--modificador`). |
+| `css/tokens.css`, `base.css`, `layout.css`, `components/*.css` | Tokens como custom properties, globales, layout y un fichero por bloque BEM. |
 
 **Decisiones de diseño visual**
-- **«Mis préstamos» se muestra como una estantería con los libros de lado (lomos)**. Al pasar el cursor, el libro «sale» de la balda (sube y crece con más sombra) y aparece a su lado una tarjeta con autor, género, fecha y el botón *Devolver*; nunca se superpone al libro. Funciona también con teclado (`:focus-within`).
+- **«Mis préstamos» se muestra como una estantería con los libros de lado (lomos)**. Al pasar el cursor, el libro «sale» de la balda y aparece a su lado una tarjeta con autor, género, fecha y el botón *Devolver*. Funciona también con teclado (`:focus-within`).
 - El catálogo de disponibles usa tarjetas con la cubierta de frente; el historial de devoluciones se presenta como un ticket.
 - Se respeta `prefers-reduced-motion` y el diseño es responsive.
 - Sin dependencias externas salvo las fuentes de Google Fonts.
 
 ---
 
-## 8. Estrategia de tests
+## 9. Estrategia de tests y reglas de arquitectura
 
-`./mvnw test` ejecuta 106 tests sobre **H2 en memoria en modo MySQL**, con el perfil `test` (`src/test/resources/application-test.yml`, esquema `create-drop`). Los tests viven en el paquete del módulo que ejercitan (`prestamo/domain/PrestamoServiceTest`, `libro/web/LibroControllerTest`…).
+`./mvnw clean test` ejecuta 531 tests. Los de repositorio contra **MariaDB real** (Testcontainers) se omiten si no hay Docker (28 tests); el resto usa **H2 en modo MariaDB** con Flyway y el perfil `test` (`src/test/resources/application-test.yml`).
 
-| Test | Qué cubre |
+> Usa `clean`: si quedan en `target/` clases de compilaciones anteriores (por ejemplo de una estructura de paquetes antigua), la suite puede fallar con errores que no existen en el código actual.
+
+Los tests viven en el mismo paquete que la clase que prueban, capa por capa:
+
+| Tipo | Qué cubre |
 |---|---|
-| `ArchitectureTest` | **19 reglas ArchUnit** que protegen la arquitectura modular (ver abajo) |
-| `auth/web/AuthControllerTest` | Registro (rol forzado a USER, email normalizado, duplicados), login, validación, rate limiting, logout con cookie |
-| `auth/security/JwtServiceTest` | Generación y validación de tokens (firma manipulada, emisor/audiencia distintos, caducado, clave corta o nula) |
-| `libro/web/LibroControllerTest` | CRUD del catálogo, permisos, conflicto de ISBN |
-| `prestamo/web/PrestamoControllerTest` | Alta y devolución, aislamiento entre usuarios, acceso ajeno 403, devolución doble 409 |
-| `prestamo/domain/PrestamoServiceTest` | Reglas del servicio de préstamos directamente |
-| `usuario/web/UsuarioControllerTest` | Permisos admin/dueño, edición, revocación de sesiones e invalidación por cambio de contraseña |
-| `SecurityIntegrationTest` | Rutas públicas y 401 en JSON en las protegidas sin token |
-| `persistence/RepositoryTest` | Consultas de los repositorios JPA |
+| Modelo y *value objects* (`BookTest`, `IsbnTest`, `EmailTest`, `UserTest`, `LoanTest`, `RefreshTokenTest`) | Invariantes del dominio |
+| Servicios (`*ServiceImplTest`, `LoanServiceTest`, `LoanQueryServiceTest`) | Reglas de negocio con repositorios simulados |
+| Casos de uso (`*UseCaseTest`) | Autorización por rol / dueño |
+| Controladores y *handlers* (`*ControllerTest`, `*ExceptionHandlerTest`, `*WebMapperTest`) | Contrato HTTP, códigos y errores |
+| Persistencia (`*RepositoryImplTest`, `*RepositoryImplMariaDbTest`, `*PersistenceMapperTest`) | Mapeo y consultas (H2 y MariaDB) |
+| `*ModuleImplTest`, `*WithLoansCheckerTest` | API pública de cada módulo y los vetos SPI |
+| `config/*Test` | Filtro JWT, proveedor JWT, rate limit, hash, resolver de `Requester`, seeder |
+| `SecurityIntegrationTest`, `EndpointAuthorizationIntegrationTest` | Rutas públicas/protegidas y autorización de extremo a extremo |
+| `ArchitectureTest`, `ApplicationModulesTest` | Arquitectura (abajo) |
 | `DemoApplicationTests` | Arranque del contexto |
 
-`BaseIntegrationTest` arranca el contexto completo con MockMvc y ofrece utilidades para crear usuarios, libros y tokens.
+`BaseIntegrationTest` arranca el contexto completo con MockMvc; `support/TestAuthentication` y `support/MariaDbContainerTest` ofrecen utilidades.
 
-### Tests de arquitectura (`ArchitectureTest`)
-Fallan el build si alguien rompe las fronteras del monolito modular:
+### Verificación de la arquitectura (dos herramientas complementarias)
 
-| Grupo | Regla |
+**Spring Modulith — `ApplicationModulesTest`.** Comprueba los límites *entre módulos*: ciclos, acceso a `internal` y dependencias fuera de `allowedDependencies`.
+
+**ArchUnit — `ArchitectureTest` (40 reglas).** Comprueba lo que Modulith no cubre: la estructura *dentro* de cada módulo.
+
+| Grupo | Reglas |
 |---|---|
-| **Estructura modular** | Sin ciclos entre módulos; `shared` no depende de ningún módulo; `libro` y `usuario` no dependen de ningún otro módulo; `prestamo` solo depende de `libro` y `usuario` (no de `auth` ni `config`); `auth` solo depende de `usuario` y `shared`; nadie depende de `config`. |
-| **Encapsulación** | Las clases internas (`web`, `persistence`, `seed`, `security`) de un módulo solo pueden ser usadas desde ese mismo módulo: la comunicación entre módulos pasa siempre por su capa `domain`. Además, un módulo solo puede contener los subpaquetes `domain`, `web`, `persistence`, `seed` y `security` (nada suelto en la raíz). |
-| **Hexagonal interna** | El `domain` de cada módulo no depende de sus adaptadores (`web`, `persistence`, `seed`, `security`); `web` y `persistence` no se conocen entre sí. |
-| **Independencia de frameworks** | El `domain` no usa Spring Security, jjwt, Spring Data ni Spring MVC/HTTP; la API servlet solo se usa en `web`, `security` y `config`. |
-| **Convenciones** | Los `@RestController` viven en `*.web`; las entidades JPA en `*.domain`; los repositorios Spring Data en `*.persistence`; no hay `@Autowired`. |
+| **Módulos y encapsulación** | Sin ciclos entre módulos; `internal` solo lo usa su propio módulo; `dto`, `exception` y `shared` no dependen de `internal`; nadie depende de `config`; cada módulo solo contiene los subpaquetes conocidos. |
+| **Capas** | `controller` no usa `service`, `persistence` ni `repository`; `usecase` no usa `controller`, `persistence` ni `repository`, ni otros `UseCase`; `XModule`/`XModuleImpl` no usan `usecase` ni `controller`; `application` no usa web ni persistencia; `domain` no depende de otras capas; `persistence` no depende de web ni de casos de uso. |
+| **Independencia de frameworks** | `domain` sin web, HTTP, validación, JPA, Spring Data, Spring Security, servlet ni jjwt; `shared` sin Spring, Jakarta ni Lombok; la API servlet solo en `controller` y `config`. |
+| **Ubicación por sufijo** | Servicios en `domain.service`; repositorios (interfaz) en `domain.repository`; `*SpringDataRepository` en `persistence.dao.impl.jpa`; `*Dto` en `dto`; `*Request`/`*Response` en `controller.dto`; `*Entity` en `dao.entity`; `*PersistenceMapper` en `repository.mapper`; `*RepositoryImpl` en `persistence`; `*UseCase` en `usecase`; `@RestController` en `controller`; `*ModuleImpl` en `application`; `@RestControllerAdvice` en `controller.handler`; mappers con MapStruct. |
+| **Autorización** | Todo método público de un `UseCase` recibe `Requester` primero (salvo `register`, `login` y `refresh`); `@PreAuthorize`, `@Secured` y `SecurityContextHolder` solo en `config`; los controladores no importan Spring Security; los DTO públicos no exponen modelos de dominio. |
+| **Otras** | Sin eventos de aplicación (la comunicación entre módulos es por API pública y SPI); sin `@Autowired`. |
 
 ---
 
-## 9. Decisiones, compromisos y limitaciones conocidas
+## 10. Decisiones, compromisos y limitaciones conocidas
 
-**Compromisos de arquitectura (deliberados)**
-- **Las entidades llevan anotaciones JPA y forman parte de la capa `domain` de su módulo.** La hexagonal «pura» separaría un modelo de dominio de las entidades de persistencia y las mapearía entre sí. Se descartó por el coste de mapeo y duplicación en una aplicación de este tamaño; la consecuencia es que el `domain` de los módulos depende de `jakarta.persistence` (una especificación, no una implementación).
-- **`@Service` y `@Transactional` en `domain`.** Son anotaciones de Spring, pero ligeras; evitan crear una capa de configuración de beans solo para registrar los servicios. El límite se mantuvo en lo que importa: ningún servicio importa tipos de persistencia ni de seguridad (lo verifican los tests de arquitectura).
-- **`prestamo` comparte entidades con `libro` y `usuario`.** `Prestamo` mantiene `@ManyToOne` hacia `Libro` y `Usuario` (y `AuthzHelper` navega `prestamo.getUsuario()`). Un monolito modular estricto referenciaría por id para poder separar esquemas; se mantuvo la relación JPA por simplicidad y porque el bloqueo pesimista y las consultas se benefician de ella. Es la costura a deshacer si un módulo se extrae.
+**Decisiones de arquitectura**
+- **Modelo de dominio separado de la entidad JPA.** `domain/model` es Java puro e inmutable; `persistence` tiene la `XEntity` y el `XPersistenceMapper` que las convierte. Cuesta más mapeo, pero el dominio no depende de JPA y se prueba sin contenedor.
+- **Los módulos se comunican por DTO públicos, no por el modelo.** `XModuleImpl` traduce y no deja pasar excepciones internas (devuelve resultados como `ReservationResult`).
+- **`loans` solo guarda ids.** No hay `@ManyToOne` entre módulos; los datos se componen en lote en el servicio. Es la razón de que un módulo pueda extraerse.
+- **Autorización en el caso de uso, no en el controlador ni con `@PreAuthorize`.** Es explícita, se prueba como código normal y no ata los módulos a Spring Security.
+- **Veto síncrono por SPI** en vez de eventos para el borrado de libros y usuarios con préstamos (consistencia dentro de la misma transacción). Es la única excepción a la comunicación sin eventos.
+- **`@Service` y `@Transactional` en `domain`.** Son anotaciones de Spring, pero ligeras; evitan una capa de configuración de beans solo para registrarlos. El límite se mantuvo en lo importante: el dominio no importa tipos de persistencia, web ni seguridad (lo verifica ArchUnit).
 - **Todos los módulos comparten una sola base de datos y un solo esquema**, sin esquemas separados por módulo.
-- **Los servicios devuelven DTO de respuesta**, no entidades: los controladores no construyen entidades ni mapean; las lecturas son `@Transactional(readOnly = true)`.
 
 **Limitaciones conocidas**
-- **Estado en memoria en un solo nodo:** el rate limiter y la lista de tokens revocados viven en memoria de la JVM. Con varias instancias o tras un reinicio no se comparten. La revocación por `tokenVersion` sí es robusta porque está en base de datos. Para un despliegue en varios nodos habría que mover ambos a Redis o a la base de datos.
+- **Los tokens de acceso no se pueden revocar antes de caducar** (máx. 15 min por defecto): no se consulta la base de datos en cada petición. Revocar sesiones o cambiar la contraseña invalida los refresh, no los accesos ya emitidos, y los roles son los de la emisión del token.
+- **Estado en memoria en un solo nodo:** el rate limiter vive en la memoria de la JVM y no se comparte entre instancias ni tras un reinicio. Los refresh tokens sí están en base de datos.
 - **El rate limiting usa `request.getRemoteAddr()`.** Detrás de un proxy inverso depende de `forward-headers-strategy: native` (ya configurado) para ver la IP real del cliente.
-- **Sin migraciones de esquema** (`ddl-auto: validate`, sin Flyway/Liquibase): los cambios de esquema se aplican a mano. Añadir Flyway sería la mejora más inmediata.
-- **Cambiar la contraseña invalida también la sesión actual** del usuario, que debe volver a entrar.
-- **`JpaPrestamoRepository.findByFechaDevolucionIsNull` (en `prestamo/persistence`)** solo se usa en `RepositoryTest`; ningún caso de uso lo consume.
-- **Reglas sin test automático:** el 409 al retirar un libro o borrar un usuario con préstamos, el bloqueo de autoborrado del administrador y la concurrencia real sobre el bloqueo pesimista (los tests ejercitan la lógica en un solo hilo).
+- **Tokens en `sessionStorage` en el frontend.** Son accesibles desde JavaScript, así que un XSS podría leerlos; se mitiga con la CSP estricta y el escapado (`esc`), y se pierden al cerrar la pestaña.
+- **Cambiar la contraseña invalida los refresh del usuario**, que debe volver a iniciar sesión cuando caduque el acceso.
+- **Tests de MariaDB solo con Docker:** sin Docker, los 28 tests de repositorio contra MariaDB se omiten y la cobertura de consultas queda en H2.
 - **No hay límite de préstamos por usuario ni fecha de vencimiento**: el modelo solo registra préstamo y devolución.
