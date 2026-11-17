@@ -1,17 +1,15 @@
 package com.example.demo.catalog.internal.domain.service;
 
-import com.example.demo.catalog.BookInUseChecker;
-import com.example.demo.catalog.dto.BookResponseDto;
-import com.example.demo.catalog.exception.BookAlreadyAvailableException;
-import com.example.demo.catalog.exception.BookNotAvailableException;
-import com.example.demo.catalog.exception.BookNotFoundException;
+import com.example.demo.catalog.internal.domain.dto.BookDto;
 import com.example.demo.catalog.internal.domain.dto.SaveBookDto;
-import com.example.demo.catalog.internal.domain.dto.SeedBooksDto;
+import com.example.demo.catalog.internal.domain.exception.BookNotFoundException;
 import com.example.demo.catalog.internal.domain.exception.BookWithLoansException;
 import com.example.demo.catalog.internal.domain.exception.DuplicateIsbnException;
 import com.example.demo.catalog.internal.domain.mapper.BookMapper;
 import com.example.demo.catalog.internal.domain.model.Book;
+import com.example.demo.catalog.internal.domain.model.Isbn;
 import com.example.demo.catalog.internal.domain.repository.BookRepository;
+import com.example.demo.catalog.spi.BookInUseChecker;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,73 +36,65 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<BookResponseDto> getAll() {
-        return bookRepository.findAll().stream().map(bookMapper::toResponse).toList();
+    public List<BookDto> getAll() {
+        return bookRepository.findAll().stream().map(bookMapper::toDto).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<BookResponseDto> findById(Long id) {
-        return bookRepository.findById(id).map(bookMapper::toResponse);
+    public Optional<BookDto> findById(Long id) {
+        return bookRepository.findById(id).map(bookMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public BookResponseDto getById(Long id) {
+    public BookDto getById(Long id) {
         return findById(id).orElseThrow(BookNotFoundException::new);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Map<Long, BookResponseDto> getByIds(Collection<Long> ids) {
+    public Map<Long, BookDto> getByIds(Collection<Long> ids) {
         return bookRepository.findAllById(ids).stream()
-                .map(bookMapper::toResponse)
-                .collect(Collectors.toMap(BookResponseDto::id, Function.identity()));
+                .map(bookMapper::toDto)
+                .collect(Collectors.toMap(BookDto::id, Function.identity()));
     }
 
     @Override
     @Transactional
-    public BookResponseDto create(SaveBookDto dto) {
-        if (bookRepository.findByIsbn(dto.isbn()).isPresent()) {
-            throw new DuplicateIsbnException();
-        }
+    public BookDto create(SaveBookDto dto) {
         Book book = bookMapper.toModel(dto);
-        book.setAvailable(true);
-        return bookMapper.toResponse(bookRepository.save(book));
-    }
-
-    @Override
-    @Transactional
-    public BookResponseDto update(Long id, SaveBookDto dto) {
-        Book book = bookRepository.findById(id).orElseThrow(BookNotFoundException::new);
-        Optional<Book> duplicate = bookRepository.findByIsbn(dto.isbn());
-        if (duplicate.isPresent() && !duplicate.get().getId().equals(id)) {
+        if (bookRepository.findByIsbn(book.isbn().value()).isPresent()) {
             throw new DuplicateIsbnException();
         }
-        bookMapper.update(dto, book);
-        return bookMapper.toResponse(bookRepository.save(book));
+        return bookMapper.toDto(bookRepository.save(book));
     }
 
     @Override
     @Transactional
-    public BookResponseDto reserve(Long id) {
-        Book book = bookRepository.findByIdWithLock(id).orElseThrow(BookNotFoundException::new);
-        if (!book.isAvailable()) {
-            throw new BookNotAvailableException();
+    public BookDto update(Long id, SaveBookDto dto) {
+        Book book = bookRepository.findById(id).orElseThrow(BookNotFoundException::new);
+        Isbn isbn = new Isbn(dto.isbn());
+        Optional<Book> duplicate = bookRepository.findByIsbn(isbn.value());
+        if (duplicate.isPresent() && !duplicate.get().id().equals(id)) {
+            throw new DuplicateIsbnException();
         }
-        book.setAvailable(false);
-        return bookMapper.toResponse(bookRepository.save(book));
+        Book updated = book.withDetails(dto.title(), dto.author(), isbn, dto.genre());
+        return bookMapper.toDto(bookRepository.save(updated));
     }
 
     @Override
     @Transactional
-    public BookResponseDto release(Long id) {
+    public BookDto reserve(Long id) {
         Book book = bookRepository.findByIdWithLock(id).orElseThrow(BookNotFoundException::new);
-        if (book.isAvailable()) {
-            throw new BookAlreadyAvailableException();
-        }
-        book.setAvailable(true);
-        return bookMapper.toResponse(bookRepository.save(book));
+        return bookMapper.toDto(bookRepository.save(book.reserve()));
+    }
+
+    @Override
+    @Transactional
+    public BookDto release(Long id) {
+        Book book = bookRepository.findByIdWithLock(id).orElseThrow(BookNotFoundException::new);
+        return bookMapper.toDto(bookRepository.save(book.release()));
     }
 
     @Override
@@ -117,27 +107,5 @@ public class BookServiceImpl implements BookService {
             throw new BookWithLoansException();
         }
         bookRepository.deleteById(id);
-    }
-
-    @Override
-    @Transactional
-    public SeedBooksDto seed(List<SaveBookDto> catalog) {
-        int created = 0;
-        int updated = 0;
-        for (SaveBookDto seed : catalog) {
-            Optional<Book> existing = bookRepository.findByIsbn(seed.isbn());
-            if (existing.isEmpty()) {
-                Book book = bookMapper.toModel(seed);
-                book.setAvailable(true);
-                bookRepository.save(book);
-                created++;
-            } else if (existing.get().getGenre() != seed.genre()) {
-                Book book = existing.get();
-                book.setGenre(seed.genre());
-                bookRepository.save(book);
-                updated++;
-            }
-        }
-        return new SeedBooksDto(created, updated);
     }
 }

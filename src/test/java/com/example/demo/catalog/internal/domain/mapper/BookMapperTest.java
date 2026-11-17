@@ -1,58 +1,49 @@
 package com.example.demo.catalog.internal.domain.mapper;
 
-import com.example.demo.catalog.dto.BookResponseDto;
-import com.example.demo.catalog.dto.Genre;
+import com.example.demo.catalog.internal.domain.dto.BookDto;
 import com.example.demo.catalog.internal.domain.dto.SaveBookDto;
+import com.example.demo.catalog.internal.domain.exception.InvalidBookException;
+import com.example.demo.catalog.internal.domain.exception.InvalidIsbnException;
 import com.example.demo.catalog.internal.domain.model.Book;
+import com.example.demo.catalog.internal.domain.model.Genre;
+import com.example.demo.catalog.internal.domain.model.Isbn;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BookMapperTest {
 
     private final BookMapper mapper = Mappers.getMapper(BookMapper.class);
 
     @Test
-    void toResponse_copiesAllFields() {
-        Book book = new Book();
-        book.setId(3L);
-        book.setTitle("T");
-        book.setAuthor("A");
-        book.setIsbn("123");
-        book.setAvailable(false);
-        book.setGenre(Genre.FANTASIA);
+    void toDto_copiesAllFields() {
+        Book book = new Book(3L, "T", "A", new Isbn("1234567890"), false, Genre.FANTASIA);
 
-        assertEquals(new BookResponseDto(3L, "T", "A", "123", false, Genre.FANTASIA), mapper.toResponse(book));
+        assertEquals(new BookDto(3L, "T", "A", "1234567890", false, Genre.FANTASIA), mapper.toDto(book));
     }
 
     @Test
-    void toModel_ignoresIdAndStartsAvailable() {
-        Book book = mapper.toModel(new SaveBookDto("T", "A", "123", Genre.POESIA));
+    void toModel_startsWithoutIdAndAvailable() {
+        Book book = mapper.toModel(new SaveBookDto("T", "A", "1234567890", Genre.POESIA));
 
-        assertNull(book.getId());
-        assertEquals("T", book.getTitle());
-        assertEquals("A", book.getAuthor());
-        assertEquals("123", book.getIsbn());
-        assertEquals(Genre.POESIA, book.getGenre());
-        assertEquals(true, book.isAvailable());
+        assertNull(book.id());
+        assertTrue(book.available());
+        assertEquals(new Isbn("1234567890"), book.isbn());
+        assertEquals(Genre.POESIA, book.genre());
     }
 
     @Test
-    void update_overwritesFields_butKeepsIdAvailabilityAndNullGenre() {
-        Book book = new Book();
-        book.setId(7L);
-        book.setAvailable(false);
-        book.setGenre(Genre.CLASICA);
+    void toModel_invalidIsbn_throwsDomainException() {
+        assertThrows(InvalidIsbnException.class, () -> mapper.toModel(new SaveBookDto("T", "A", "123", Genre.POESIA)));
+    }
 
-        mapper.update(new SaveBookDto("T2", "A2", "999", null), book);
-
-        assertEquals(7L, book.getId());
-        assertFalse(book.isAvailable());
-        assertEquals("T2", book.getTitle());
-        assertEquals("999", book.getIsbn());
-        assertEquals(Genre.CLASICA, book.getGenre());
+    @Test
+    void toModel_nullGenre_throwsDomainException() {
+        assertThrows(InvalidBookException.class,
+                () -> mapper.toModel(new SaveBookDto("T", "A", "1234567890", null)));
     }
 }

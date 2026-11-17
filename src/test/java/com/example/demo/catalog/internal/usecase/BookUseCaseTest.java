@@ -1,17 +1,13 @@
 package com.example.demo.catalog.internal.usecase;
 
-import com.example.demo.catalog.dto.BookResponseDto;
-import com.example.demo.catalog.dto.Genre;
-import com.example.demo.catalog.internal.controller.dto.BookRequest;
-import com.example.demo.catalog.internal.controller.dto.BookResponse;
-import com.example.demo.catalog.internal.controller.mapper.BookWebMapper;
+import com.example.demo.catalog.internal.domain.dto.BookDto;
 import com.example.demo.catalog.internal.domain.dto.SaveBookDto;
+import com.example.demo.catalog.internal.domain.model.Genre;
 import com.example.demo.catalog.internal.domain.service.BookService;
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -29,46 +25,42 @@ class BookUseCaseTest {
 
     private static final Requester ADMIN = new Requester(1L, Set.of("ADMIN"));
     private static final Requester USER = new Requester(2L, Set.of("USER"));
-    private static final BookRequest REQUEST = new BookRequest("T", "A", "1234567890", Genre.CLASICA);
     private static final SaveBookDto SAVE = new SaveBookDto("T", "A", "1234567890", Genre.CLASICA);
-    private static final BookResponseDto DTO = new BookResponseDto(5L, "T", "A", "1234567890", true, Genre.CLASICA);
-    private static final BookResponse RESPONSE = new BookResponse(5L, "T", "A", "1234567890", true, Genre.CLASICA);
+    private static final BookDto DTO = new BookDto(5L, "T", "A", "1234567890", true, Genre.CLASICA);
 
     @Mock
     private BookService bookService;
 
-    private final BookWebMapper webMapper = Mappers.getMapper(BookWebMapper.class);
-
     private BookUseCase useCase() {
-        return new BookUseCase(bookService, webMapper);
+        return new BookUseCase(bookService);
     }
 
     @Test
     void getAll_allowedForAnyAuthenticatedUser() {
         when(bookService.getAll()).thenReturn(List.of(DTO));
 
-        assertEquals(List.of(RESPONSE), useCase().getAll(USER));
+        assertEquals(List.of(DTO), useCase().getAll(USER));
     }
 
     @Test
     void getById_allowedForAnyAuthenticatedUser() {
         when(bookService.getById(5L)).thenReturn(DTO);
 
-        assertEquals(RESPONSE, useCase().getById(USER, 5L));
+        assertEquals(DTO, useCase().getById(USER, 5L));
     }
 
     @Test
     void create_admin_delegatesAndMaps() {
         when(bookService.create(SAVE)).thenReturn(DTO);
 
-        assertEquals(RESPONSE, useCase().create(ADMIN, REQUEST));
+        assertEquals(DTO, useCase().create(ADMIN, SAVE));
     }
 
     @Test
     void update_admin_delegatesAndMaps() {
         when(bookService.update(5L, SAVE)).thenReturn(DTO);
 
-        assertEquals(RESPONSE, useCase().update(ADMIN, 5L, REQUEST));
+        assertEquals(DTO, useCase().update(ADMIN, 5L, SAVE));
     }
 
     @Test
@@ -80,13 +72,13 @@ class BookUseCaseTest {
 
     @Test
     void create_nonAdmin_isForbidden() {
-        assertThrows(ForbiddenException.class, () -> useCase().create(USER, REQUEST));
+        assertThrows(ForbiddenException.class, () -> useCase().create(USER, SAVE));
         verifyNoInteractions(bookService);
     }
 
     @Test
     void update_nonAdmin_isForbidden() {
-        assertThrows(ForbiddenException.class, () -> useCase().update(USER, 5L, REQUEST));
+        assertThrows(ForbiddenException.class, () -> useCase().update(USER, 5L, SAVE));
         verifyNoInteractions(bookService);
     }
 

@@ -1,9 +1,7 @@
 package com.example.demo.loans.internal.usecase;
 
-import com.example.demo.loans.dto.LoanResponseDto;
-import com.example.demo.loans.internal.controller.dto.LoanResponse;
-import com.example.demo.loans.internal.controller.mapper.LoanWebMapper;
 import com.example.demo.loans.internal.domain.dto.CreateLoanDto;
+import com.example.demo.loans.internal.domain.dto.LoanDto;
 import com.example.demo.loans.internal.domain.service.LoanService;
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
@@ -20,37 +18,35 @@ import java.util.List;
 public class LoanUseCase {
 
     private final LoanService loanService;
-    private final LoanWebMapper webMapper;
 
-    public LoanUseCase(LoanService loanService, LoanWebMapper webMapper) {
+    public LoanUseCase(LoanService loanService) {
         this.loanService = loanService;
-        this.webMapper = webMapper;
     }
 
-    public List<LoanResponse> getAll(Requester requester) {
+    public List<LoanDto> getAll(Requester requester) {
         requireAdmin(requester);
-        return webMapper.toResponses(loanService.getAll());
+        return loanService.getAll();
     }
 
-    public List<LoanResponse> getOwn(Requester requester) {
+    public List<LoanDto> getOwn(Requester requester) {
         requireAuthenticated(requester);
-        return webMapper.toResponses(loanService.getByUserId(requester.id()));
+        return loanService.getByUserId(requester.id());
     }
 
-    public LoanResponse getById(Requester requester, Long id) {
-        LoanResponseDto loan = loanService.getById(id);
+    public LoanDto getById(Requester requester, Long id) {
+        LoanDto loan = loanService.getById(id);
         requireAdminOrOwner(requester, loan);
-        return webMapper.toResponse(loan);
+        return loan;
     }
 
-    public LoanResponse create(Requester requester, Long bookId) {
+    public LoanDto create(Requester requester, Long bookId) {
         requireAuthenticated(requester);
-        return webMapper.toResponse(loanService.create(new CreateLoanDto(bookId, requester.id())));
+        return loanService.create(new CreateLoanDto(bookId, requester.id()));
     }
 
-    public LoanResponse returnLoan(Requester requester, Long id) {
+    public LoanDto returnLoan(Requester requester, Long id) {
         requireAdminOrOwner(requester, loanService.getById(id));
-        return webMapper.toResponse(loanService.returnLoan(id));
+        return loanService.returnLoan(id);
     }
 
     private static void requireAdmin(Requester requester) {
@@ -65,7 +61,7 @@ public class LoanUseCase {
         }
     }
 
-    private static void requireAdminOrOwner(Requester requester, LoanResponseDto loan) {
+    private static void requireAdminOrOwner(Requester requester, LoanDto loan) {
         if (!requester.isAdmin() && !requester.isOwner(loan.userId())) {
             throw new ForbiddenException();
         }

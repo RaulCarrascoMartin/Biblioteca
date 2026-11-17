@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.List;
 
 /**
  * Base de los tests de integración (contexto completo con seguridad real). Solo usa API pública de
@@ -46,6 +47,7 @@ public abstract class BaseIntegrationTest {
     private int seq = 0;
 
     protected void cleanDb() {
+        jdbc.update("DELETE FROM refresh_tokens");
         jdbc.update("DELETE FROM prestamos");
         jdbc.update("DELETE FROM libros");
         jdbc.update("DELETE FROM usuarios");
@@ -62,7 +64,7 @@ public abstract class BaseIntegrationTest {
     }
 
     protected long createBook(String title) {
-        return insert("INSERT INTO libros (titulo, autor, isbn, disponible) VALUES (?, ?, ?, TRUE)",
+        return insert("INSERT INTO libros (titulo, autor, isbn, disponible, genero) VALUES (?, ?, ?, TRUE, 'CLASICA')",
                 title, "Autor de prueba", String.format("978000000000%03d", seq++));
     }
 
@@ -73,7 +75,8 @@ public abstract class BaseIntegrationTest {
     }
 
     protected String tokenFor(String email) {
-        return tokenProvider.generate(email, 0);
+        var user = jdbc.queryForMap("SELECT id, rol FROM usuarios WHERE email = ?", email);
+        return tokenProvider.generate(((Number) user.get("id")).longValue(), List.of("ROLE_" + user.get("rol")));
     }
 
     protected String bearer(String email) {

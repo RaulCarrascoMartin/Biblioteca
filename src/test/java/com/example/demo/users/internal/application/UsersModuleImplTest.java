@@ -1,8 +1,11 @@
 package com.example.demo.users.internal.application;
 
-import com.example.demo.users.dto.UserCredentialsDto;
-import com.example.demo.users.dto.UserDto;
-import com.example.demo.users.dto.UserResponseDto;
+import com.example.demo.users.dto.NewUser;
+import com.example.demo.users.dto.UserCredentials;
+import com.example.demo.users.dto.UserSummary;
+import com.example.demo.users.internal.domain.dto.NewUserDto;
+import com.example.demo.users.internal.domain.dto.UserCredentialsDto;
+import com.example.demo.users.internal.domain.dto.UserDto;
 import com.example.demo.users.internal.domain.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,7 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,44 +29,59 @@ class UsersModuleImplTest {
     @InjectMocks
     private UsersModuleImpl module;
 
-    private final UserResponseDto ana = new UserResponseDto(1L, "Ana", "ana@x.es", "USER");
+    private final UserDto ana = new UserDto(1L, "Ana", "ana@x.es", "USER");
+    private final UserSummary anaSummary = new UserSummary(1L, "Ana", "ana@x.es", "USER");
 
     @Test
-    void getByIdDelegatesToOptionalSearch() {
+    void getByIdMapsToPublicDto() {
         when(service.findById(1L)).thenReturn(Optional.of(ana));
         when(service.findById(2L)).thenReturn(Optional.empty());
 
-        assertSame(ana, module.getById(1L).orElseThrow());
+        assertEquals(anaSummary, module.getById(1L).orElseThrow());
         assertEquals(Optional.empty(), module.getById(2L));
     }
 
     @Test
-    void getByEmailDelegates() {
+    void getByEmailMapsToPublicDto() {
         when(service.findByEmail("ana@x.es")).thenReturn(Optional.of(ana));
 
-        assertSame(ana, module.getByEmail("ana@x.es").orElseThrow());
+        assertEquals(anaSummary, module.getByEmail("ana@x.es").orElseThrow());
     }
 
     @Test
-    void getByIdsDelegates() {
+    void getByIdsMapsEveryValue() {
         when(service.getByIds(List.of(1L))).thenReturn(Map.of(1L, ana));
 
-        assertEquals(Map.of(1L, ana), module.getByIds(List.of(1L)));
+        assertEquals(Map.of(1L, anaSummary), module.getByIds(List.of(1L)));
     }
 
     @Test
-    void registerDelegates() {
-        UserDto dto = new UserDto("Ana", "ana@x.es", "Secreta123");
-        when(service.register(dto)).thenReturn(Optional.of(ana));
+    void registerMapsInputAndOutput() {
+        when(service.register(new NewUserDto("Ana", "ana@x.es", "Secreta123"))).thenReturn(Optional.of(ana));
 
-        assertSame(ana, module.register(dto).orElseThrow());
+        assertEquals(anaSummary, module.register(new NewUser("Ana", "ana@x.es", "Secreta123")).orElseThrow());
     }
 
     @Test
-    void getCredentialsDelegates() {
-        UserCredentialsDto credentials = new UserCredentialsDto("ana@x.es", "hash", "USER", 0);
-        when(service.findCredentialsByEmail("ana@x.es")).thenReturn(Optional.of(credentials));
+    void registerEmptyStaysEmpty() {
+        when(service.register(new NewUserDto("Ana", "ana@x.es", "x"))).thenReturn(Optional.empty());
 
-        assertSame(credentials, module.getCredentials("ana@x.es").orElseThrow());
+        assertEquals(Optional.empty(), module.register(new NewUser("Ana", "ana@x.es", "x")));
+    }
+
+    @Test
+    void getCredentialsMapsHashToPassword() {
+        when(service.findCredentialsByEmail("ana@x.es"))
+                .thenReturn(Optional.of(new UserCredentialsDto("ana@x.es", "hash", "USER", 3)));
+
+        assertEquals(new UserCredentials("ana@x.es", "hash", "USER", 3),
+                module.getCredentials("ana@x.es").orElseThrow());
+    }
+
+    @Test
+    void ensureAdminDelegates() {
+        module.ensureAdmin("admin@x.es", "Secreta123");
+
+        verify(service).ensureAdmin("admin@x.es", "Secreta123");
     }
 }

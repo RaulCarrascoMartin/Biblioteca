@@ -1,18 +1,19 @@
 package com.example.demo.catalog.internal.domain.service;
 
-import com.example.demo.catalog.BookInUseChecker;
-import com.example.demo.catalog.dto.BookResponseDto;
-import com.example.demo.catalog.dto.Genre;
-import com.example.demo.catalog.exception.BookAlreadyAvailableException;
-import com.example.demo.catalog.exception.BookNotAvailableException;
-import com.example.demo.catalog.exception.BookNotFoundException;
+import com.example.demo.catalog.internal.domain.dto.BookDto;
 import com.example.demo.catalog.internal.domain.dto.SaveBookDto;
-import com.example.demo.catalog.internal.domain.dto.SeedBooksDto;
+import com.example.demo.catalog.internal.domain.exception.BookAlreadyAvailableException;
+import com.example.demo.catalog.internal.domain.exception.BookNotAvailableException;
+import com.example.demo.catalog.internal.domain.exception.BookNotFoundException;
 import com.example.demo.catalog.internal.domain.exception.BookWithLoansException;
 import com.example.demo.catalog.internal.domain.exception.DuplicateIsbnException;
+import com.example.demo.catalog.internal.domain.exception.InvalidIsbnException;
 import com.example.demo.catalog.internal.domain.mapper.BookMapper;
 import com.example.demo.catalog.internal.domain.model.Book;
+import com.example.demo.catalog.internal.domain.model.Genre;
+import com.example.demo.catalog.internal.domain.model.Isbn;
 import com.example.demo.catalog.internal.domain.repository.BookRepository;
+import com.example.demo.catalog.spi.BookInUseChecker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +39,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BookServiceImplTest {
 
+    private static final String ISBN_1 = "1111111111";
+    private static final String ISBN_2 = "2222222222";
+
     @Mock
     private BookRepository repository;
 
@@ -52,14 +56,7 @@ class BookServiceImplTest {
     }
 
     private static Book book(Long id, String isbn, boolean available) {
-        Book b = new Book();
-        b.setId(id);
-        b.setTitle("Título");
-        b.setAuthor("Autor");
-        b.setIsbn(isbn);
-        b.setAvailable(available);
-        b.setGenre(Genre.CLASICA);
-        return b;
+        return new Book(id, "Título", "Autor", new Isbn(isbn), available, Genre.CLASICA);
     }
 
     private static SaveBookDto dto(String isbn, Genre genre) {
@@ -68,12 +65,12 @@ class BookServiceImplTest {
 
     @Test
     void getAll_mapsModelsToDtos() {
-        when(repository.findAll()).thenReturn(List.of(book(1L, "111", true)));
+        when(repository.findAll()).thenReturn(List.of(book(1L, ISBN_1, true)));
 
-        List<BookResponseDto> result = service.getAll();
+        List<BookDto> result = service.getAll();
 
         assertEquals(1, result.size());
-        assertEquals("111", result.get(0).isbn());
+        assertEquals(ISBN_1, result.get(0).isbn());
     }
 
     @Test
@@ -92,33 +89,35 @@ class BookServiceImplTest {
 
     @Test
     void getById_existing_returnsDto() {
-        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, "111", true)));
+        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
 
         assertEquals(1L, service.getById(1L).id());
     }
 
     @Test
-    void getByIds_indexesById_andOmitsMissing() {
+    void getByIds_indexesById() {
         when(repository.findAllById(List.of(1L, 2L)))
-                .thenReturn(List.of(book(1L, "111", true), book(2L, "222", false)));
+                .thenReturn(List.of(book(1L, ISBN_1, true), book(2L, ISBN_2, false)));
 
-        Map<Long, BookResponseDto> result = service.getByIds(List.of(1L, 2L));
+        Map<Long, BookDto> result = service.getByIds(List.of(1L, 2L));
 
         assertEquals(2, result.size());
         assertFalse(result.get(2L).available());
     }
 
     @Test
-    void create_newIsbn_savesAvailableBook() {
-        when(repository.findByIsbn("111")).thenReturn(Optional.empty());
+    void create_newIsbn_savesAvailableBookWithoutId() {
+        when(repository.findByIsbn(ISBN_1)).thenReturn(Optional.empty());
         when(repository.save(any(Book.class))).thenAnswer(inv -> {
-            Book saved = inv.getArgument(0);
-            saved.setId(5L);
-            return saved;
+            Book b = inv.getArgument(0);
+            return new Book(5L, b.title(), b.author(), b.isbn(), b.available(), b.genre());
         });
 
-        BookResponseDto result = service.create(dto("111", Genre.MISTERIO));
+        BookDto result = service.create(dto(ISBN_1, Genre.MISTERIO));
 
+        ArgumentCaptor<Book> saved = ArgumentCaptor.forClass(Book.class);
+        verify(repository).save(saved.capture());
+        assertEquals(null, saved.getValue().id());
         assertEquals(5L, result.id());
         assertTrue(result.available());
         assertEquals(Genre.MISTERIO, result.genre());
@@ -126,9 +125,15 @@ class BookServiceImplTest {
 
     @Test
     void create_duplicateIsbn_throwsAndDoesNotSave() {
-        when(repository.findByIsbn("111")).thenReturn(Optional.of(book(1L, "111", true)));
+        when(repository.findByIsbn(ISBN_1)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
 
-        assertThrows(DuplicateIsbnException.class, () -> service.create(dto("111", null)));
+        assertThrows(DuplicateIsbnException.class, () -> service.create(dto(ISBN_1, Genre.CLASICA)));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void create_invalidIsbn_throwsDomainException() {
+        assertThrows(InvalidIsbnException.class, () -> service.create(dto("123", Genre.CLASICA)));
         verify(repository, never()).save(any());
     }
 
@@ -136,26 +141,26 @@ class BookServiceImplTest {
     void update_missing_throwsNotFound() {
         when(repository.findById(9L)).thenReturn(Optional.empty());
 
-        assertThrows(BookNotFoundException.class, () -> service.update(9L, dto("111", null)));
+        assertThrows(BookNotFoundException.class, () -> service.update(9L, dto(ISBN_1, null)));
     }
 
     @Test
     void update_isbnOfAnotherBook_throwsDuplicate() {
-        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, "111", true)));
-        when(repository.findByIsbn("222")).thenReturn(Optional.of(book(2L, "222", true)));
+        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
+        when(repository.findByIsbn(ISBN_2)).thenReturn(Optional.of(book(2L, ISBN_2, true)));
 
-        assertThrows(DuplicateIsbnException.class, () -> service.update(1L, dto("222", null)));
+        assertThrows(DuplicateIsbnException.class, () -> service.update(1L, dto(ISBN_2, null)));
         verify(repository, never()).save(any());
     }
 
     @Test
     void update_sameIsbn_updatesFields_keepsAvailabilityAndGenreWhenNull() {
-        Book existing = book(1L, "111", false);
+        Book existing = book(1L, ISBN_1, false);
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.findByIsbn("111")).thenReturn(Optional.of(existing));
+        when(repository.findByIsbn(ISBN_1)).thenReturn(Optional.of(existing));
         when(repository.save(any(Book.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BookResponseDto result = service.update(1L, dto("111", null));
+        BookDto result = service.update(1L, dto(ISBN_1, null));
 
         assertEquals("Nuevo", result.title());
         assertFalse(result.available());
@@ -163,8 +168,8 @@ class BookServiceImplTest {
     }
 
     @Test
-    void reserve_availableBook_marksUnavailable() {
-        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, "111", true)));
+    void reserve_availableBook_savesUnavailableCopy() {
+        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
         when(repository.save(any(Book.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertFalse(service.reserve(1L).available());
@@ -172,7 +177,7 @@ class BookServiceImplTest {
 
     @Test
     void reserve_unavailableBook_throws() {
-        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, "111", false)));
+        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, ISBN_1, false)));
 
         assertThrows(BookNotAvailableException.class, () -> service.reserve(1L));
         verify(repository, never()).save(any());
@@ -186,8 +191,8 @@ class BookServiceImplTest {
     }
 
     @Test
-    void release_unavailableBook_marksAvailable() {
-        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, "111", false)));
+    void release_unavailableBook_savesAvailableCopy() {
+        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, ISBN_1, false)));
         when(repository.save(any(Book.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertTrue(service.release(1L).available());
@@ -195,7 +200,7 @@ class BookServiceImplTest {
 
     @Test
     void release_availableBook_throws() {
-        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, "111", true)));
+        when(repository.findByIdWithLock(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
 
         assertThrows(BookAlreadyAvailableException.class, () -> service.release(1L));
     }
@@ -209,7 +214,7 @@ class BookServiceImplTest {
 
     @Test
     void delete_notInUse_deletes() {
-        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, "111", true)));
+        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
         when(checker.isInUse(1L)).thenReturn(false);
 
         service.delete(1L);
@@ -219,7 +224,7 @@ class BookServiceImplTest {
 
     @Test
     void delete_vetoedByChecker_throwsAndDoesNotDelete() {
-        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, "111", true)));
+        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
         when(checker.isInUse(1L)).thenReturn(true);
 
         assertThrows(BookWithLoansException.class, () -> service.delete(1L));
@@ -238,25 +243,10 @@ class BookServiceImplTest {
     @Test
     void delete_withoutCheckers_deletes() {
         BookServiceImpl noCheckers = new BookServiceImpl(repository, mapper, List.of());
-        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, "111", true)));
+        when(repository.findById(1L)).thenReturn(Optional.of(book(1L, ISBN_1, true)));
 
         noCheckers.delete(1L);
 
         verify(repository).deleteById(1L);
-    }
-
-    @Test
-    void seed_createsMissing_updatesGenre_ignoresEqual() {
-        when(repository.findByIsbn("new")).thenReturn(Optional.empty());
-        when(repository.findByIsbn("diff")).thenReturn(Optional.of(book(1L, "diff", true)));
-        when(repository.findByIsbn("same")).thenReturn(Optional.of(book(2L, "same", true)));
-
-        SeedBooksDto result = service.seed(List.of(
-                dto("new", Genre.POESIA), dto("diff", Genre.POESIA), dto("same", Genre.CLASICA)));
-
-        assertEquals(new SeedBooksDto(1, 1), result);
-        ArgumentCaptor<Book> saved = ArgumentCaptor.forClass(Book.class);
-        verify(repository, org.mockito.Mockito.times(2)).save(saved.capture());
-        assertTrue(saved.getAllValues().stream().allMatch(b -> b.getGenre() == Genre.POESIA));
     }
 }

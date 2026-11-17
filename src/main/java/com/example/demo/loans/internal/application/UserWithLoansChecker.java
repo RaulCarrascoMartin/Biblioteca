@@ -1,24 +1,24 @@
 package com.example.demo.loans.internal.application;
 
-import com.example.demo.loans.internal.domain.repository.LoanRepository;
-import com.example.demo.users.UserInUseChecker;
+import com.example.demo.loans.internal.domain.service.LoanQueryService;
+import com.example.demo.users.spi.UserInUseChecker;
 import org.springframework.stereotype.Component;
 
 /**
  * Adaptador hacia {@code users}: un usuario con préstamos registrados no puede eliminarse (se conserva
- * el historial). Usa el repositorio propio por el mismo motivo que {@link BookWithLoansChecker}.
+ * el historial). Usa {@link LoanQueryService} por el mismo motivo que {@link BookWithLoansChecker}.
  */
 @Component
 public class UserWithLoansChecker implements UserInUseChecker {
 
-    private final LoanRepository loanRepository;
+    private final LoanQueryService loanQueryService;
 
-    public UserWithLoansChecker(LoanRepository loanRepository) {
-        this.loanRepository = loanRepository;
+    public UserWithLoansChecker(LoanQueryService loanQueryService) {
+        this.loanQueryService = loanQueryService;
     }
 
     @Override
     public boolean isInUse(Long userId) {
-        return loanRepository.existsByUserId(userId);
+        return loanQueryService.existsByUserId(userId);
     }
 }

@@ -1,11 +1,13 @@
 package com.example.demo.catalog.internal.controller.handler;
 
-import com.example.demo.catalog.exception.BookAlreadyAvailableException;
-import com.example.demo.catalog.exception.BookNotAvailableException;
-import com.example.demo.catalog.exception.BookNotFoundException;
+import com.example.demo.catalog.internal.domain.exception.BookAlreadyAvailableException;
+import com.example.demo.catalog.internal.domain.exception.BookNotAvailableException;
+import com.example.demo.catalog.internal.domain.exception.BookNotFoundException;
 import com.example.demo.catalog.internal.controller.dto.BookRequest;
 import com.example.demo.catalog.internal.domain.exception.BookWithLoansException;
 import com.example.demo.catalog.internal.domain.exception.DuplicateIsbnException;
+import com.example.demo.catalog.internal.domain.exception.InvalidBookException;
+import com.example.demo.catalog.internal.domain.exception.InvalidIsbnException;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.ProblemDetail;
@@ -35,6 +37,12 @@ class BookExceptionHandlerTest {
         assertEquals(409, handler.handleConflict(new BookWithLoansException()).getStatus());
         assertEquals(409, handler.handleConflict(new BookNotAvailableException()).getStatus());
         assertEquals(409, handler.handleConflict(new BookAlreadyAvailableException()).getStatus());
+    }
+
+    @Test
+    void invariants_are422() {
+        assertEquals(422, handler.handleInvalid(new InvalidBookException("El género es obligatorio")).getStatus());
+        assertEquals(422, handler.handleInvalid(new InvalidIsbnException("1")).getStatus());
     }
 
     @Test

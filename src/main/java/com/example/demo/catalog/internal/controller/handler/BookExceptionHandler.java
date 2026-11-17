@@ -1,11 +1,13 @@
 package com.example.demo.catalog.internal.controller.handler;
 
-import com.example.demo.catalog.exception.BookAlreadyAvailableException;
-import com.example.demo.catalog.exception.BookNotAvailableException;
-import com.example.demo.catalog.exception.BookNotFoundException;
 import com.example.demo.catalog.internal.controller.BookController;
+import com.example.demo.catalog.internal.domain.exception.BookAlreadyAvailableException;
+import com.example.demo.catalog.internal.domain.exception.BookNotAvailableException;
+import com.example.demo.catalog.internal.domain.exception.BookNotFoundException;
 import com.example.demo.catalog.internal.domain.exception.BookWithLoansException;
 import com.example.demo.catalog.internal.domain.exception.DuplicateIsbnException;
+import com.example.demo.catalog.internal.domain.exception.InvalidBookException;
+import com.example.demo.catalog.internal.domain.exception.InvalidIsbnException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -18,8 +20,7 @@ import java.util.List;
 
 /**
  * Traduce a HTTP (ProblemDetail, RFC 9457) las excepciones del módulo {@code catalog}. Solo actúa sobre
- * los controllers de este módulo; quien llame a {@code CatalogModule} desde otro controller debe traducir
- * las excepciones públicas ({@code catalog.exception}) en su propio handler.
+ * los controllers de este módulo.
  */
 @RestControllerAdvice(basePackageClasses = BookController.class)
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -45,5 +46,11 @@ public class BookExceptionHandler {
             BookNotAvailableException.class, BookAlreadyAvailableException.class})
     public ProblemDetail handleConflict(RuntimeException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Invariantes del modelo que el formato del DTO web no cubre (p. ej. género nulo al crear). */
+    @ExceptionHandler({InvalidBookException.class, InvalidIsbnException.class})
+    public ProblemDetail handleInvalid(RuntimeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 }

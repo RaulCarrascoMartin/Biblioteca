@@ -1,8 +1,8 @@
 package com.example.demo.users.internal.controller.mapper;
 
-import com.example.demo.users.dto.UserResponseDto;
 import com.example.demo.users.internal.controller.dto.UserResponse;
 import com.example.demo.users.internal.controller.dto.UserUpdateRequest;
+import com.example.demo.users.internal.domain.dto.UserDto;
 import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -18,7 +18,7 @@ public interface UserWebMapper {
 
     @Mapping(source = "name", target = "nombre")
     @Mapping(source = "role", target = "rol")
-    UserResponse toResponse(UserResponseDto dto);
+    UserResponse toResponse(UserDto dto);
 
-    List<UserResponse> toResponses(List<UserResponseDto> dtos);
+    List<UserResponse> toResponses(List<UserDto> dtos);
 }

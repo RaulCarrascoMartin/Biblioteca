@@ -1,12 +1,16 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:biblioteca;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:biblioteca;MODE=MariaDB;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
+  flyway:
+    enabled: true
+    # El callback de test vacía los libros de V2 para que los tests partan de tabla limpia.
+    locations: classpath:db/migration,classpath:db/testdata
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.H2Dialect
     open-in-view: false
     show-sql: false

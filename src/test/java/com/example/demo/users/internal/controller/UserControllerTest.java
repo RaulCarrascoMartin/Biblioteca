@@ -1,37 +1,36 @@
 package com.example.demo.users.internal.controller;
 
+import com.example.demo.config.SecurityConfig;
+import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
-import com.example.demo.users.internal.controller.dto.UserResponse;
-import com.example.demo.users.internal.controller.handler.UserExceptionHandler;
+import com.example.demo.shared.TokenProvider;
+import com.example.demo.users.internal.controller.mapper.UserWebMapperImpl;
+import com.example.demo.users.internal.domain.dto.UserDto;
+import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import com.example.demo.users.internal.domain.exception.EmailAlreadyRegisteredException;
 import com.example.demo.users.internal.domain.exception.SelfDeletionException;
 import com.example.demo.users.internal.domain.exception.UserNotFoundException;
 import com.example.demo.users.internal.domain.exception.UserWithLoansException;
 import com.example.demo.users.internal.usecase.UserUseCase;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.MethodParameter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.bind.support.WebDataBinderFactory;
-import org.springframework.web.context.request.NativeWebRequest;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.util.List;
 import java.util.Set;
 
+import static com.example.demo.support.TestAuthentication.asUser;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,46 +40,69 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Prueba HTTP del controller en aislamiento: caso de uso simulado, sin Spring Security ni {@code config}. */
-@ExtendWith(MockitoExtension.class)
+/**
+ * Prueba HTTP del controller con la {@code SecurityConfig} real: 401 sin identidad, 403 cuando el caso
+ * de uso (simulado) deniega, y traducción de errores. La política de acceso se prueba en
+ * {@code UserUseCaseTest}.
+ */
+@WebMvcTest(UserController.class)
+@Import({SecurityConfig.class, UserWebMapperImpl.class})
 class UserControllerTest {
 
-    private static final Requester REQUESTER = new Requester(1L, Set.of("ADMIN"));
+    private static final Requester ADMIN = new Requester(1L, Set.of("ADMIN"));
+    private static final String UPDATE_BODY = "{\"nombre\":\"Ana\",\"email\":\"ana@x.es\",\"password\":\"Nueva4567\"}";
 
-    @Mock
-    private UserUseCase useCase;
-
+    @Autowired
     private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
-        HandlerMethodArgumentResolver fixedRequester = new HandlerMethodArgumentResolver() {
-            @Override
-            public boolean supportsParameter(MethodParameter parameter) {
-                return Requester.class.equals(parameter.getParameterType());
-            }
+    @MockitoBean
+    private UserUseCase useCase;
+    // Colaborador del filtro JWT de la SecurityConfig real (la identidad se publica con TestAuthentication)
+    @MockitoBean
+    private TokenProvider tokenProvider;
 
-            @Override
-            public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
-                                          NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-                return REQUESTER;
-            }
-        };
-        mockMvc = MockMvcBuilders.standaloneSetup(new UserController(useCase))
-                .setCustomArgumentResolvers(fixedRequester)
-                .setControllerAdvice(new UserExceptionHandler())
-                .build();
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor admin() {
+        return asUser(1L, "ADMIN");
     }
 
-    private static UserResponse ana() {
-        return new UserResponse(2L, "Ana", "ana@x.es", "USER");
+    private static UserDto ana() {
+        return new UserDto(2L, "Ana", "ana@x.es", "USER");
+    }
+
+    // ---- 401 / 403
+
+    @Test
+    void everyEndpointIs401WithoutIdentity() throws Exception {
+        mockMvc.perform(get("/api/usuarios")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/usuarios/me")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/usuarios/2")).andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/usuarios/2").contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/usuarios/2/revocar-sesiones")).andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/usuarios/2")).andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(useCase);
     }
 
     @Test
-    void getAllReturnsUsersWithHistoricalFieldNamesAndNoPassword() throws Exception {
-        when(useCase.getAll(REQUESTER)).thenReturn(List.of(ana()));
+    void forbiddenFromUseCaseIs403() throws Exception {
+        Requester bob = new Requester(3L, Set.of("USER"));
+        when(useCase.getAll(bob)).thenThrow(new ForbiddenException());
+        doThrow(new ForbiddenException()).when(useCase).delete(bob, 2L);
 
-        mockMvc.perform(get("/api/usuarios"))
+        mockMvc.perform(get("/api/usuarios").with(asUser(3L, "USER")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/usuarios/2").with(asUser(3L, "USER")))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- éxito y contrato
+
+    @Test
+    void getAllReturnsUsersWithHistoricalFieldNamesAndNoPassword() throws Exception {
+        when(useCase.getAll(ADMIN)).thenReturn(List.of(ana()));
+
+        mockMvc.perform(get("/api/usuarios").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].nombre").value("Ana"))
@@ -90,27 +112,27 @@ class UserControllerTest {
 
     @Test
     void meReturnsCurrentUser() throws Exception {
-        when(useCase.me(REQUESTER)).thenReturn(ana());
+        when(useCase.me(ADMIN)).thenReturn(ana());
 
-        mockMvc.perform(get("/api/usuarios/me"))
+        mockMvc.perform(get("/api/usuarios/me").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("ana@x.es"));
     }
 
     @Test
     void getByIdReturnsUser() throws Exception {
-        when(useCase.getById(REQUESTER, 2L)).thenReturn(ana());
+        when(useCase.getById(ADMIN, 2L)).thenReturn(ana());
 
-        mockMvc.perform(get("/api/usuarios/2"))
+        mockMvc.perform(get("/api/usuarios/2").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(2));
     }
 
     @Test
     void getByIdUnknownIs404ProblemDetail() throws Exception {
-        when(useCase.getById(REQUESTER, 9L)).thenThrow(new UserNotFoundException(9L));
+        when(useCase.getById(ADMIN, 9L)).thenThrow(new UserNotFoundException(9L));
 
-        mockMvc.perform(get("/api/usuarios/9"))
+        mockMvc.perform(get("/api/usuarios/9").with(admin()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value(containsString("9")))
@@ -118,19 +140,18 @@ class UserControllerTest {
     }
 
     @Test
-    void updateReturnsUpdatedUser() throws Exception {
-        when(useCase.update(eq(REQUESTER), eq(2L), any())).thenReturn(ana());
+    void updateMapsRequestToDtoAndReturnsUpdatedUser() throws Exception {
+        when(useCase.update(ADMIN, 2L, new UserUpdateDto("Ana", "ana@x.es", "Nueva4567"))).thenReturn(ana());
 
-        mockMvc.perform(put("/api/usuarios/2")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nombre\":\"Ana\",\"email\":\"ana@x.es\",\"password\":\"Nueva4567\"}"))
+        mockMvc.perform(put("/api/usuarios/2").with(admin())
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombre").value("Ana"));
     }
 
     @Test
     void updateWithShortPasswordIs400ProblemDetailWithField() throws Exception {
-        mockMvc.perform(put("/api/usuarios/2")
+        mockMvc.perform(put("/api/usuarios/2").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nombre\":\"Ana\",\"email\":\"ana@x.es\",\"password\":\"123\"}"))
                 .andExpect(status().isBadRequest())
@@ -141,7 +162,7 @@ class UserControllerTest {
 
     @Test
     void updateWithInvalidEmailIs400() throws Exception {
-        mockMvc.perform(put("/api/usuarios/2")
+        mockMvc.perform(put("/api/usuarios/2").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nombre\":\"Ana\",\"email\":\"no-es-correo\"}"))
                 .andExpect(status().isBadRequest())
@@ -149,47 +170,47 @@ class UserControllerTest {
     }
 
     @Test
-    void updateWithRepeatedEmailKeepsHistoricalStatus400() throws Exception {
-        when(useCase.update(eq(REQUESTER), eq(2L), any())).thenThrow(new EmailAlreadyRegisteredException());
+    void updateWithRepeatedEmailIs409() throws Exception {
+        when(useCase.update(any(), any(), any())).thenThrow(new EmailAlreadyRegisteredException());
 
-        mockMvc.perform(put("/api/usuarios/2")
+        mockMvc.perform(put("/api/usuarios/2").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nombre\":\"Ana\",\"email\":\"bob@x.es\"}"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.error").value(containsString("registrado")));
     }
 
     @Test
     void revokeSessionsIs204() throws Exception {
-        mockMvc.perform(post("/api/usuarios/2/revocar-sesiones"))
+        mockMvc.perform(post("/api/usuarios/2/revocar-sesiones").with(admin()))
                 .andExpect(status().isNoContent());
 
-        verify(useCase).revokeSessions(REQUESTER, 2L);
+        verify(useCase).revokeSessions(ADMIN, 2L);
     }
 
     @Test
     void deleteIs204() throws Exception {
-        mockMvc.perform(delete("/api/usuarios/2"))
+        mockMvc.perform(delete("/api/usuarios/2").with(admin()))
                 .andExpect(status().isNoContent());
 
-        verify(useCase).delete(REQUESTER, 2L);
+        verify(useCase).delete(ADMIN, 2L);
     }
 
     @Test
     void deleteUserWithLoansIs409() throws Exception {
-        doThrow(new UserWithLoansException()).when(useCase).delete(REQUESTER, 2L);
+        doThrow(new UserWithLoansException()).when(useCase).delete(ADMIN, 2L);
 
-        mockMvc.perform(delete("/api/usuarios/2"))
+        mockMvc.perform(delete("/api/usuarios/2").with(admin()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.error").value(containsString("préstamos")));
     }
 
     @Test
     void deleteSelfIs409() throws Exception {
-        doThrow(new SelfDeletionException()).when(useCase).delete(REQUESTER, 1L);
+        doThrow(new SelfDeletionException()).when(useCase).delete(ADMIN, 1L);
 
-        mockMvc.perform(delete("/api/usuarios/1"))
+        mockMvc.perform(delete("/api/usuarios/1").with(admin()))
                 .andExpect(status().isConflict());
     }
 }

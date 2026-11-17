@@ -2,7 +2,14 @@ package com.example.demo.loans.internal.controller;
 
 import com.example.demo.loans.internal.controller.dto.LoanResponse;
 import com.example.demo.shared.Requester;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,31 +19,65 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
-/**
- * Contrato HTTP de préstamos (única fuente de verdad de rutas y validación). Códigos: 200 éxito;
- * 400 formato (libroId no positivo o ausente); 401 sin sesión; 403 sin permiso; 404 préstamo, libro o
- * usuario inexistente; 409 libro no disponible o préstamo ya devuelto.
- */
-@RequestMapping("/api/prestamos")
+/** Contrato HTTP de préstamos (ruta base {@code /api/prestamos}): única fuente de verdad de rutas y validación. */
+@Tag(name = "Préstamos", description = "Préstamos de libros")
+@RequestMapping(LoanHttpApi.BASE_PATH)
 public interface LoanHttpApi {
 
-    /** Solo ADMIN. */
+    String BASE_PATH = "/api/prestamos";
+
+    @Operation(summary = "Lista todos los préstamos", description = "Solo ADMIN.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Todos los préstamos"),
+            @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Sin permiso")
+    })
     @GetMapping
-    List<LoanResponse> getAll(Requester requester);
+    List<LoanResponse> getAll(@Parameter(hidden = true) Requester requester);
 
-    /** Cualquier autenticado: sus propios préstamos. */
+    @Operation(summary = "Lista mis préstamos", description = "Cualquier usuario autenticado: sus propios préstamos.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Préstamos del solicitante"),
+            @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content)
+    })
     @GetMapping("/mios")
-    List<LoanResponse> getOwn(Requester requester);
+    List<LoanResponse> getOwn(@Parameter(hidden = true) Requester requester);
 
-    /** ADMIN o dueño del préstamo. 404 si no existe. */
+    @Operation(summary = "Obtiene un préstamo", description = "ADMIN o dueño del préstamo.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Préstamo encontrado"),
+            @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El préstamo no existe")
+    })
     @GetMapping("/{id}")
-    LoanResponse getById(Requester requester, @PathVariable("id") Long id);
+    LoanResponse getById(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 
-    /** Cualquier autenticado: presta el libro a nombre del solicitante. 404 libro inexistente, 409 no disponible. */
+    @Operation(summary = "Presta un libro",
+            description = "Cualquier usuario autenticado: presta el libro a nombre del solicitante. "
+                    + "Devuelve la cabecera Location del nuevo préstamo.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Préstamo creado"),
+            @ApiResponse(responseCode = "400", description = "libroId ausente o no positivo"),
+            @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El libro o el usuario no existen"),
+            @ApiResponse(responseCode = "409", description = "El libro no está disponible"),
+            @ApiResponse(responseCode = "422", description = "Datos que incumplen una invariante del préstamo")
+    })
     @PostMapping
-    LoanResponse create(Requester requester, @RequestParam("libroId") @Positive Long bookId);
+    ResponseEntity<LoanResponse> create(@Parameter(hidden = true) Requester requester,
+                                        @RequestParam("libroId") @Positive Long bookId);
 
-    /** ADMIN o dueño del préstamo. 404 inexistente, 409 ya devuelto. */
+    @Operation(summary = "Devuelve un libro", description = "ADMIN o dueño del préstamo.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Préstamo devuelto"),
+            @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El préstamo no existe"),
+            @ApiResponse(responseCode = "409",
+                    description = "Ya estaba devuelto, el libro ya estaba disponible o hubo una modificación concurrente")
+    })
     @PutMapping("/{id}/devolver")
-    LoanResponse returnLoan(Requester requester, @PathVariable("id") Long id);
+    LoanResponse returnLoan(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 }

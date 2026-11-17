@@ -2,16 +2,12 @@ package com.example.demo.users.internal.usecase;
 
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
-import com.example.demo.users.dto.UserResponseDto;
-import com.example.demo.users.internal.controller.dto.UserResponse;
-import com.example.demo.users.internal.controller.dto.UserUpdateRequest;
-import com.example.demo.users.internal.controller.mapper.UserWebMapper;
+import com.example.demo.users.internal.domain.dto.UserDto;
 import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import com.example.demo.users.internal.domain.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,11 +34,11 @@ class UserUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new UserUseCase(service, Mappers.getMapper(UserWebMapper.class));
+        useCase = new UserUseCase(service);
     }
 
-    private static UserResponseDto dto(Long id) {
-        return new UserResponseDto(id, "Ana", "ana@x.es", "USER");
+    private static UserDto dto(Long id) {
+        return new UserDto(id, "Ana", "ana@x.es", "USER");
     }
 
     // ---- getAll: ADMIN
@@ -51,7 +47,7 @@ class UserUseCaseTest {
     void getAllAllowedForAdmin() {
         when(service.getAll()).thenReturn(List.of(dto(2L)));
 
-        assertEquals(List.of(new UserResponse(2L, "Ana", "ana@x.es", "USER")), useCase.getAll(ADMIN));
+        assertEquals(List.of(dto(2L)), useCase.getAll(ADMIN));
     }
 
     @Test
@@ -100,26 +96,26 @@ class UserUseCaseTest {
     // ---- update: ADMIN o dueño
 
     @Test
-    void updateAllowedForOwnerMapsRequestToDto() {
+    void updateAllowedForOwnerPassesDtoToService() {
         when(service.update(2L, new UserUpdateDto("Ana", "ana@x.es", null))).thenReturn(dto(2L));
 
-        UserResponse response = useCase.update(OWNER, 2L, new UserUpdateRequest("Ana", "ana@x.es", null));
+        UserDto response = useCase.update(OWNER, 2L, new UserUpdateDto("Ana", "ana@x.es", null));
 
-        assertEquals("Ana", response.nombre());
-        assertEquals("USER", response.rol());
+        assertEquals("Ana", response.name());
+        assertEquals("USER", response.role());
     }
 
     @Test
     void updateAllowedForAdmin() {
         when(service.update(2L, new UserUpdateDto("Ana", "ana@x.es", null))).thenReturn(dto(2L));
 
-        assertEquals(2L, useCase.update(ADMIN, 2L, new UserUpdateRequest("Ana", "ana@x.es", null)).id());
+        assertEquals(2L, useCase.update(ADMIN, 2L, new UserUpdateDto("Ana", "ana@x.es", null)).id());
     }
 
     @Test
     void updateForbiddenForOtherUser() {
         assertThrows(ForbiddenException.class,
-                () -> useCase.update(OTHER, 2L, new UserUpdateRequest("Ana", "ana@x.es", null)));
+                () -> useCase.update(OTHER, 2L, new UserUpdateDto("Ana", "ana@x.es", null)));
         verifyNoInteractions(service);
     }
 

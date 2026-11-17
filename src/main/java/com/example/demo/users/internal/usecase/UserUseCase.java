@@ -2,9 +2,8 @@ package com.example.demo.users.internal.usecase;
 
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
-import com.example.demo.users.internal.controller.dto.UserResponse;
-import com.example.demo.users.internal.controller.dto.UserUpdateRequest;
-import com.example.demo.users.internal.controller.mapper.UserWebMapper;
+import com.example.demo.users.internal.domain.dto.UserDto;
+import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import com.example.demo.users.internal.domain.service.UserService;
 import org.springframework.stereotype.Component;
 
@@ -19,33 +18,31 @@ import java.util.List;
 public class UserUseCase {
 
     private final UserService userService;
-    private final UserWebMapper mapper;
 
-    public UserUseCase(UserService userService, UserWebMapper mapper) {
+    public UserUseCase(UserService userService) {
         this.userService = userService;
-        this.mapper = mapper;
     }
 
-    public List<UserResponse> getAll(Requester requester) {
+    public List<UserDto> getAll(Requester requester) {
         requireAdmin(requester);
-        return mapper.toResponses(userService.getAll());
+        return userService.getAll();
     }
 
-    public UserResponse me(Requester requester) {
+    public UserDto me(Requester requester) {
         if (requester.id() == null) {
             throw new ForbiddenException();
         }
-        return mapper.toResponse(userService.getById(requester.id()));
+        return userService.getById(requester.id());
     }
 
-    public UserResponse getById(Requester requester, Long id) {
+    public UserDto getById(Requester requester, Long id) {
         requireAdminOrOwner(requester, id);
-        return mapper.toResponse(userService.getById(id));
+        return userService.getById(id);
     }
 
-    public UserResponse update(Requester requester, Long id, UserUpdateRequest request) {
+    public UserDto update(Requester requester, Long id, UserUpdateDto dto) {
         requireAdminOrOwner(requester, id);
-        return mapper.toResponse(userService.update(id, mapper.toDto(request)));
+        return userService.update(id, dto);
     }
 
     public void revokeSessions(Requester requester, Long id) {

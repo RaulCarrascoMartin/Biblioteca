@@ -1,19 +1,30 @@
 package com.example.demo.auth.internal.domain.service;
 
-import com.example.demo.users.dto.UserDto;
-import com.example.demo.users.dto.UserResponseDto;
+import com.example.demo.auth.internal.domain.dto.RegisterUserDto;
+import com.example.demo.auth.internal.domain.dto.RegisteredUserDto;
+import com.example.demo.auth.internal.domain.dto.TokenPairDto;
 
 import java.util.Optional;
 
 public interface AuthService {
 
     /** Devuelve vacío si el email ya estaba registrado (no se revela al cliente). */
-    Optional<UserResponseDto> register(UserDto dto);
+    Optional<RegisteredUserDto> register(RegisterUserDto dto);
 
-    /** @return el token de sesión
-     *  @throws com.example.demo.shared.InvalidCredentialsException si las credenciales no son válidas */
-    String login(String email, String password);
+    /**
+     * @return el par acceso/refresh
+     * @throws com.example.demo.shared.InvalidCredentialsException si las credenciales no son válidas
+     */
+    TokenPairDto login(String email, String password);
 
-    /** Revoca el token (cierre de sesión). */
-    void revokeToken(String token);
+    /**
+     * Rota el refresh: lo revoca y emite un par nuevo. Si el token ya estaba usado (reuso) revoca todas
+     * las sesiones del usuario.
+     *
+     * @throws com.example.demo.shared.InvalidCredentialsException si es desconocido, caducado, revocado o reutilizado
+     */
+    TokenPairDto refresh(String refreshToken);
+
+    /** Revoca el refresh token (cierre de sesión). Idempotente: un token desconocido se ignora. */
+    void logout(String refreshToken);
 }

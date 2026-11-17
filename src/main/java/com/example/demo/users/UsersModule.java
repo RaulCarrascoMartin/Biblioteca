@@ -1,8 +1,8 @@
 package com.example.demo.users;
 
-import com.example.demo.users.dto.UserCredentialsDto;
-import com.example.demo.users.dto.UserDto;
-import com.example.demo.users.dto.UserResponseDto;
+import com.example.demo.users.dto.NewUser;
+import com.example.demo.users.dto.UserCredentials;
+import com.example.demo.users.dto.UserSummary;
 
 import java.util.Collection;
 import java.util.Map;
@@ -14,16 +14,19 @@ import java.util.Optional;
  */
 public interface UsersModule {
 
-    Optional<UserResponseDto> getById(Long id);
+    Optional<UserSummary> getById(Long id);
 
-    Optional<UserResponseDto> getByEmail(String email);
+    Optional<UserSummary> getByEmail(String email);
 
     /** Varios usuarios de una vez, indexados por id. Los ids inexistentes se omiten. */
-    Map<Long, UserResponseDto> getByIds(Collection<Long> ids);
+    Map<Long, UserSummary> getByIds(Collection<Long> ids);
 
     /** Registra un usuario con rol USER. Devuelve vacío si el email ya estaba registrado. */
-    Optional<UserResponseDto> register(UserDto dto);
+    Optional<UserSummary> register(NewUser dto);
 
     /** Credenciales (con el hash de la contraseña) para el módulo de autenticación. */
-    Optional<UserCredentialsDto> getCredentials(String email);
+    Optional<UserCredentials> getCredentials(String email);
+
+    /** Crea el administrador inicial si todavía no existe un usuario con ese email (idempotente). */
+    void ensureAdmin(String email, String rawPassword);
 }

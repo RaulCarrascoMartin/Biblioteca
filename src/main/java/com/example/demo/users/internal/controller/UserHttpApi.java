@@ -3,6 +3,11 @@ package com.example.demo.users.internal.controller;
 import com.example.demo.shared.Requester;
 import com.example.demo.users.internal.controller.dto.UserResponse;
 import com.example.demo.users.internal.controller.dto.UserUpdateRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,34 +21,72 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import java.util.List;
 
 /**
- * Contrato HTTP de usuarios (única fuente de verdad de rutas y validación). Códigos:
- * 200/204 éxito; 400 formato o email repetido; 401 sin sesión; 403 sin permiso; 404 no existe;
- * 409 usuario con préstamos o autoeliminación.
+ * Contrato HTTP de usuarios (única fuente de verdad de rutas, validación y códigos). El
+ * {@link Requester} lo inyecta la capa de seguridad y no forma parte del contrato.
  */
+@Tag(name = "Usuarios", description = "Gestión de cuentas de usuario")
 @RequestMapping("/api/usuarios")
 public interface UserHttpApi {
 
-    /** Solo ADMIN. */
+    @Operation(summary = "Listar usuarios (solo ADMIN)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Listado de usuarios"),
+            @ApiResponse(responseCode = "401", description = "Sin sesión"),
+            @ApiResponse(responseCode = "403", description = "Sin permiso")
+    })
     @GetMapping
-    List<UserResponse> getAll(Requester requester);
+    List<UserResponse> getAll(@Parameter(hidden = true) Requester requester);
 
-    /** Cualquier autenticado. */
+    @Operation(summary = "Usuario autenticado")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuario actual"),
+            @ApiResponse(responseCode = "401", description = "Sin sesión"),
+            @ApiResponse(responseCode = "404", description = "El usuario no existe")
+    })
     @GetMapping("/me")
-    UserResponse me(Requester requester);
+    UserResponse me(@Parameter(hidden = true) Requester requester);
 
-    /** ADMIN o dueño. */
+    @Operation(summary = "Obtener un usuario (ADMIN o dueño)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuario"),
+            @ApiResponse(responseCode = "401", description = "Sin sesión"),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El usuario no existe")
+    })
     @GetMapping("/{id}")
-    UserResponse getById(Requester requester, @PathVariable("id") Long id);
+    UserResponse getById(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 
-    /** ADMIN o dueño. */
+    @Operation(summary = "Actualizar un usuario (ADMIN o dueño)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuario actualizado"),
+            @ApiResponse(responseCode = "400", description = "Formato inválido"),
+            @ApiResponse(responseCode = "401", description = "Sin sesión"),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El usuario no existe"),
+            @ApiResponse(responseCode = "409", description = "El email ya está registrado")
+    })
     @PutMapping("/{id}")
-    UserResponse update(Requester requester, @PathVariable("id") Long id, @Valid @RequestBody UserUpdateRequest request);
+    UserResponse update(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id,
+                        @Valid @RequestBody UserUpdateRequest request);
 
-    /** ADMIN o dueño. */
+    @Operation(summary = "Revocar las sesiones de un usuario (ADMIN o dueño)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Sesiones revocadas"),
+            @ApiResponse(responseCode = "401", description = "Sin sesión"),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El usuario no existe")
+    })
     @PostMapping("/{id}/revocar-sesiones")
-    ResponseEntity<Void> revokeSessions(Requester requester, @PathVariable("id") Long id);
+    ResponseEntity<Void> revokeSessions(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 
-    /** Solo ADMIN. */
+    @Operation(summary = "Eliminar un usuario (solo ADMIN)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Usuario eliminado"),
+            @ApiResponse(responseCode = "401", description = "Sin sesión"),
+            @ApiResponse(responseCode = "403", description = "Sin permiso"),
+            @ApiResponse(responseCode = "404", description = "El usuario no existe"),
+            @ApiResponse(responseCode = "409", description = "Tiene préstamos o es el propio usuario")
+    })
     @DeleteMapping("/{id}")
-    ResponseEntity<Void> delete(Requester requester, @PathVariable("id") Long id);
+    ResponseEntity<Void> delete(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 }

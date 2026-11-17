@@ -1,18 +1,19 @@
 package com.example.demo.users.internal.domain.service;
 
 import com.example.demo.shared.PasswordHasher;
-import com.example.demo.users.UserInUseChecker;
-import com.example.demo.users.dto.UserCredentialsDto;
-import com.example.demo.users.dto.UserDto;
-import com.example.demo.users.dto.UserResponseDto;
+import com.example.demo.users.internal.domain.dto.NewUserDto;
+import com.example.demo.users.internal.domain.dto.UserCredentialsDto;
+import com.example.demo.users.internal.domain.dto.UserDto;
 import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import com.example.demo.users.internal.domain.exception.EmailAlreadyRegisteredException;
 import com.example.demo.users.internal.domain.exception.SelfDeletionException;
 import com.example.demo.users.internal.domain.exception.UserNotFoundException;
 import com.example.demo.users.internal.domain.exception.UserWithLoansException;
 import com.example.demo.users.internal.domain.mapper.UserMapper;
+import com.example.demo.users.internal.domain.model.Email;
 import com.example.demo.users.internal.domain.model.User;
 import com.example.demo.users.internal.domain.repository.UserRepository;
+import com.example.demo.users.spi.UserInUseChecker;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,87 +44,76 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserResponseDto> getAll() {
-        return userRepository.findAll().stream().map(userMapper::toResponse).toList();
+    public List<UserDto> getAll() {
+        return userRepository.findAll().stream().map(userMapper::toDto).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public UserResponseDto getById(Long id) {
+    public UserDto getById(Long id) {
         return userRepository.findById(id)
-                .map(userMapper::toResponse)
+                .map(userMapper::toDto)
                 .orElseThrow(() -> new UserNotFoundException(id));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UserResponseDto> findById(Long id) {
-        return userRepository.findById(id).map(userMapper::toResponse);
+    public Optional<UserDto> findById(Long id) {
+        return userRepository.findById(id).map(userMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UserResponseDto> findByEmail(String email) {
-        return userRepository.findByEmail(email).map(userMapper::toResponse);
+    public Optional<UserDto> findByEmail(String email) {
+        return userRepository.findByEmail(email).map(userMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Map<Long, UserResponseDto> getByIds(Collection<Long> ids) {
+    public Map<Long, UserDto> getByIds(Collection<Long> ids) {
         return userRepository.findAllById(ids).stream()
-                .map(userMapper::toResponse)
-                .collect(Collectors.toMap(UserResponseDto::id, Function.identity()));
+                .map(userMapper::toDto)
+                .collect(Collectors.toMap(UserDto::id, Function.identity()));
     }
 
     @Override
     @Transactional
-    public Optional<UserResponseDto> register(UserDto dto) {
-        String email = dto.email().trim().toLowerCase();
-        if (userRepository.findByEmail(email).isPresent()) {
+    public Optional<UserDto> register(NewUserDto dto) {
+        Email email = new Email(dto.email());
+        if (userRepository.findByEmail(email.value()).isPresent()) {
             return Optional.empty();
         }
-
-        User user = new User();
-        user.setName(dto.name().trim());
-        user.setEmail(email);
-        user.setPassword(passwordHasher.hash(dto.password()));
-        user.setRole("USER");
-
-        return Optional.of(userMapper.toResponse(userRepository.save(user)));
+        User user = userMapper.toModel(dto, passwordHasher.hash(dto.password()));
+        return Optional.of(userMapper.toDto(userRepository.save(user)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<UserCredentialsDto> findCredentialsByEmail(String email) {
-        return userRepository.findByEmail(email).map(userMapper::toCredentials);
+        return userRepository.findByEmail(email).map(userMapper::toCredentialsDto);
     }
 
     @Override
     @Transactional
-    public UserResponseDto update(Long id, UserUpdateDto dto) {
+    public UserDto update(Long id, UserUpdateDto dto) {
         User user = userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id));
 
-        String newEmail = dto.email().trim().toLowerCase();
-        if (!user.getEmail().equalsIgnoreCase(newEmail) && userRepository.findByEmail(newEmail).isPresent()) {
+        Email newEmail = new Email(dto.email());
+        if (!user.email().equals(newEmail) && userRepository.findByEmail(newEmail.value()).isPresent()) {
             throw new EmailAlreadyRegisteredException();
         }
-        user.setName(dto.name().trim());
-        user.setEmail(newEmail);
-
+        User updated = user.rename(dto.name()).changeEmail(newEmail);
         if (dto.password() != null && !dto.password().isBlank()) {
-            user.setPassword(passwordHasher.hash(dto.password()));
-            user.setTokenVersion(user.getTokenVersion() + 1);
+            updated = updated.changePassword(passwordHasher.hash(dto.password()));
         }
-
-        return userMapper.toResponse(userRepository.save(user));
+        return userMapper.toDto(userRepository.save(updated));
     }
 
     @Override
     @Transactional
     public void revokeSessions(Long id) {
         User user = userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id));
-        user.setTokenVersion(user.getTokenVersion() + 1);
-        userRepository.save(user);
+        userRepository.save(user.revokeSessions());
     }
 
     @Override
@@ -139,5 +129,15 @@ public class UserServiceImpl implements UserService {
             throw new UserWithLoansException();
         }
         userRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public void ensureAdmin(String email, String rawPassword) {
+        Email adminEmail = new Email(email);
+        if (userRepository.findByEmail(adminEmail.value()).isPresent()) {
+            return;
+        }
+        userRepository.save(User.newAdmin(adminEmail, passwordHasher.hash(rawPassword)));
     }
 }

@@ -2,6 +2,8 @@ package com.example.demo.users.internal.controller.handler;
 
 import com.example.demo.users.internal.controller.UserController;
 import com.example.demo.users.internal.domain.exception.EmailAlreadyRegisteredException;
+import com.example.demo.users.internal.domain.exception.InvalidEmailException;
+import com.example.demo.users.internal.domain.exception.InvalidUserException;
 import com.example.demo.users.internal.domain.exception.SelfDeletionException;
 import com.example.demo.users.internal.domain.exception.UserNotFoundException;
 import com.example.demo.users.internal.domain.exception.UserWithLoansException;
@@ -29,14 +31,15 @@ public class UserExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    @ExceptionHandler({UserWithLoansException.class, SelfDeletionException.class})
+    @ExceptionHandler({UserWithLoansException.class, SelfDeletionException.class,
+            EmailAlreadyRegisteredException.class})
     public ProblemDetail handleConflict(RuntimeException ex) {
         return problem(HttpStatus.CONFLICT, ex.getMessage());
     }
 
-    /** El contrato histórico responde 400 (no 409) cuando el email ya existe. */
-    @ExceptionHandler(EmailAlreadyRegisteredException.class)
-    public ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
+    /** Invariantes del dominio que el formato web no detectó. */
+    @ExceptionHandler({InvalidEmailException.class, InvalidUserException.class})
+    public ProblemDetail handleInvalid(RuntimeException ex) {
         return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 

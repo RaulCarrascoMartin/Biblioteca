@@ -1,17 +1,20 @@
 package com.example.demo.users.internal.domain.service;
 
 import com.example.demo.shared.PasswordHasher;
-import com.example.demo.users.UserInUseChecker;
-import com.example.demo.users.dto.UserDto;
-import com.example.demo.users.dto.UserResponseDto;
+import com.example.demo.users.internal.domain.dto.NewUserDto;
+import com.example.demo.users.internal.domain.dto.UserDto;
 import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import com.example.demo.users.internal.domain.exception.EmailAlreadyRegisteredException;
+import com.example.demo.users.internal.domain.exception.InvalidEmailException;
 import com.example.demo.users.internal.domain.exception.SelfDeletionException;
 import com.example.demo.users.internal.domain.exception.UserNotFoundException;
 import com.example.demo.users.internal.domain.exception.UserWithLoansException;
 import com.example.demo.users.internal.domain.mapper.UserMapper;
+import com.example.demo.users.internal.domain.model.Email;
+import com.example.demo.users.internal.domain.model.Role;
 import com.example.demo.users.internal.domain.model.User;
 import com.example.demo.users.internal.domain.repository.UserRepository;
+import com.example.demo.users.spi.UserInUseChecker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +29,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,19 +55,14 @@ class UserServiceImplTest {
     }
 
     private static User user(Long id, String name, String email) {
-        User u = new User();
-        u.setId(id);
-        u.setName(name);
-        u.setEmail(email);
-        u.setPassword("hash");
-        return u;
+        return new User(id, name, new Email(email), "hash", Role.USER, 0);
     }
 
     @Test
     void getAllMapsEveryUser() {
         when(repository.findAll()).thenReturn(List.of(user(1L, "Ana", "ana@x.es"), user(2L, "Bob", "bob@x.es")));
 
-        List<UserResponseDto> result = service.getAll();
+        List<UserDto> result = service.getAll();
 
         assertEquals(2, result.size());
         assertEquals("Ana", result.get(0).name());
@@ -73,7 +72,7 @@ class UserServiceImplTest {
     void getByIdReturnsDtoWithoutPassword() {
         when(repository.findById(1L)).thenReturn(Optional.of(user(1L, "Ana", "ana@x.es")));
 
-        UserResponseDto dto = service.getById(1L);
+        UserDto dto = service.getById(1L);
 
         assertEquals("ana@x.es", dto.email());
         assertEquals("USER", dto.role());
@@ -101,30 +100,30 @@ class UserServiceImplTest {
         when(repository.findAllById(List.of(1L, 2L)))
                 .thenReturn(List.of(user(1L, "Ana", "a@x.es"), user(2L, "Bob", "b@x.es")));
 
-        Map<Long, UserResponseDto> result = service.getByIds(List.of(1L, 2L));
+        Map<Long, UserDto> result = service.getByIds(List.of(1L, 2L));
 
-        assertEquals(Map.of(1L, "Ana", 2L, "Bob"),
-                Map.of(1L, result.get(1L).name(), 2L, result.get(2L).name()));
+        assertEquals("Ana", result.get(1L).name());
+        assertEquals("Bob", result.get(2L).name());
     }
 
     @Test
-    void registerNormalizesEmailHashesPasswordAndForcesUserRole() {
+    void registerHashesPasswordAndSavesNormalizedUserRole() {
         when(repository.findByEmail("ana@x.es")).thenReturn(Optional.empty());
         when(hasher.hash("Secreta123")).thenReturn("HASH");
         when(repository.save(any(User.class))).thenAnswer(inv -> {
             User u = inv.getArgument(0);
-            u.setId(7L);
-            return u;
+            return new User(7L, u.name(), u.email(), u.passwordHash(), u.role(), u.tokenVersion());
         });
 
-        Optional<UserResponseDto> result = service.register(new UserDto("  Ana ", "  ANA@x.es ", "Secreta123"));
+        Optional<UserDto> result = service.register(new NewUserDto("  Ana ", "  ANA@x.es ", "Secreta123"));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(repository).save(saved.capture());
-        assertEquals("Ana", saved.getValue().getName());
-        assertEquals("ana@x.es", saved.getValue().getEmail());
-        assertEquals("HASH", saved.getValue().getPassword());
-        assertEquals("USER", saved.getValue().getRole());
+        assertNull(saved.getValue().id());
+        assertEquals("Ana", saved.getValue().name());
+        assertEquals("ana@x.es", saved.getValue().email().value());
+        assertEquals("HASH", saved.getValue().passwordHash());
+        assertEquals(Role.USER, saved.getValue().role());
         assertEquals(7L, result.orElseThrow().id());
     }
 
@@ -132,49 +131,56 @@ class UserServiceImplTest {
     void registerReturnsEmptyWhenEmailExists() {
         when(repository.findByEmail("ana@x.es")).thenReturn(Optional.of(user(1L, "Ana", "ana@x.es")));
 
-        assertTrue(service.register(new UserDto("Ana", "ana@x.es", "Secreta123")).isEmpty());
+        assertTrue(service.register(new NewUserDto("Ana", "ana@x.es", "Secreta123")).isEmpty());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void registerRejectsInvalidEmail() {
+        assertThrows(InvalidEmailException.class, () -> service.register(new NewUserDto("Ana", "mal", "Secreta123")));
         verify(repository, never()).save(any());
     }
 
     @Test
     void findCredentialsExposesHashAndTokenVersion() {
-        User u = user(1L, "Ana", "ana@x.es");
-        u.setTokenVersion(3);
+        User u = new User(1L, "Ana", new Email("ana@x.es"), "hash", Role.USER, 3);
         when(repository.findByEmail("ana@x.es")).thenReturn(Optional.of(u));
 
         var credentials = service.findCredentialsByEmail("ana@x.es").orElseThrow();
 
-        assertEquals("hash", credentials.password());
+        assertEquals("hash", credentials.passwordHash());
         assertEquals(3, credentials.tokenVersion());
         assertFalse(credentials.toString().contains("hash"));
     }
 
     @Test
     void updateChangesNameAndEmailAndKeepsPasswordWhenBlank() {
-        User existing = user(1L, "Ana", "ana@x.es");
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.findById(1L)).thenReturn(Optional.of(user(1L, "Ana", "ana@x.es")));
         when(repository.findByEmail("ana2@x.es")).thenReturn(Optional.empty());
-        when(repository.save(existing)).thenReturn(existing);
+        when(repository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UserResponseDto dto = service.update(1L, new UserUpdateDto(" Ana M ", "ANA2@x.es", " "));
+        UserDto dto = service.update(1L, new UserUpdateDto(" Ana M ", "ANA2@x.es", " "));
 
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(repository).save(saved.capture());
         assertEquals("Ana M", dto.name());
         assertEquals("ana2@x.es", dto.email());
-        assertEquals("hash", existing.getPassword());
-        assertEquals(0, existing.getTokenVersion());
+        assertEquals("hash", saved.getValue().passwordHash());
+        assertEquals(0, saved.getValue().tokenVersion());
     }
 
     @Test
     void updateWithPasswordHashesItAndBumpsTokenVersion() {
-        User existing = user(1L, "Ana", "ana@x.es");
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.findById(1L)).thenReturn(Optional.of(user(1L, "Ana", "ana@x.es")));
         when(hasher.hash("Nueva4567")).thenReturn("NEWHASH");
-        when(repository.save(existing)).thenReturn(existing);
+        when(repository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.update(1L, new UserUpdateDto("Ana", "ana@x.es", "Nueva4567"));
+        service.update(1L, new UserUpdateDto("Ana", "ANA@x.es", "Nueva4567"));
 
-        assertEquals("NEWHASH", existing.getPassword());
-        assertEquals(1, existing.getTokenVersion());
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(repository).save(saved.capture());
+        assertEquals("NEWHASH", saved.getValue().passwordHash());
+        assertEquals(1, saved.getValue().tokenVersion());
         verify(repository, never()).findByEmail(any());
     }
 
@@ -196,14 +202,14 @@ class UserServiceImplTest {
     }
 
     @Test
-    void revokeSessionsBumpsTokenVersion() {
-        User existing = user(1L, "Ana", "ana@x.es");
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+    void revokeSessionsSavesUserWithBumpedTokenVersion() {
+        when(repository.findById(1L)).thenReturn(Optional.of(user(1L, "Ana", "ana@x.es")));
 
         service.revokeSessions(1L);
 
-        assertEquals(1, existing.getTokenVersion());
-        verify(repository).save(existing);
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(repository).save(saved.capture());
+        assertEquals(1, saved.getValue().tokenVersion());
     }
 
     @Test
@@ -244,5 +250,35 @@ class UserServiceImplTest {
 
         assertThrows(UserWithLoansException.class, () -> service.delete(2L, 1L));
         verify(repository, never()).deleteById(any());
+    }
+
+    @Test
+    void ensureAdminCreatesAdminWithHashedPassword() {
+        when(repository.findByEmail("admin@x.es")).thenReturn(Optional.empty());
+        when(hasher.hash("Secreta123")).thenReturn("HASH");
+
+        service.ensureAdmin(" Admin@X.es ", "Secreta123");
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(repository).save(saved.capture());
+        assertNull(saved.getValue().id());
+        assertEquals(Role.ADMIN, saved.getValue().role());
+        assertEquals("admin@x.es", saved.getValue().email().value());
+        assertEquals("HASH", saved.getValue().passwordHash());
+    }
+
+    @Test
+    void ensureAdminDoesNothingWhenEmailAlreadyExists() {
+        when(repository.findByEmail("admin@x.es")).thenReturn(Optional.of(user(1L, "Admin", "admin@x.es")));
+
+        service.ensureAdmin("admin@x.es", "Secreta123");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void ensureAdminRejectsInvalidEmail() {
+        assertThrows(InvalidEmailException.class, () -> service.ensureAdmin("mal", "Secreta123"));
+        verify(repository, never()).save(any());
     }
 }

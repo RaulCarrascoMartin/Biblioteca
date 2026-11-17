@@ -1,18 +1,20 @@
 package com.example.demo.loans.internal.domain.service;
 
 import com.example.demo.catalog.CatalogModule;
-import com.example.demo.catalog.dto.BookResponseDto;
-import com.example.demo.catalog.exception.BookNotFoundException;
-import com.example.demo.loans.dto.LoanResponseDto;
+import com.example.demo.catalog.dto.BookSummary;
+import com.example.demo.catalog.dto.ReservationResult;
+import com.example.demo.loans.internal.domain.exception.LoanBookNotFoundException;
 import com.example.demo.loans.internal.domain.dto.CreateLoanDto;
-import com.example.demo.loans.internal.domain.exception.LoanAlreadyReturnedException;
+import com.example.demo.loans.internal.domain.dto.LoanDto;
+import com.example.demo.loans.internal.domain.exception.LoanBookAlreadyAvailableException;
+import com.example.demo.loans.internal.domain.exception.LoanBookNotAvailableException;
 import com.example.demo.loans.internal.domain.exception.LoanNotFoundException;
 import com.example.demo.loans.internal.domain.exception.LoanUserNotFoundException;
 import com.example.demo.loans.internal.domain.mapper.LoanMapper;
 import com.example.demo.loans.internal.domain.model.Loan;
 import com.example.demo.loans.internal.domain.repository.LoanRepository;
 import com.example.demo.users.UsersModule;
-import com.example.demo.users.dto.UserResponseDto;
+import com.example.demo.users.dto.UserSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,98 +46,100 @@ public class LoanServiceImpl implements LoanService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<LoanResponseDto> getAll() {
-        return toResponses(loanRepository.findAll());
+    public List<LoanDto> getAll() {
+        return toDtos(loanRepository.findAll());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public LoanResponseDto getById(Long id) {
-        return loanRepository.findById(id).map(this::toResponse).orElseThrow(LoanNotFoundException::new);
+    public LoanDto getById(Long id) {
+        return loanRepository.findById(id).map(this::toDto).orElseThrow(LoanNotFoundException::new);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<LoanResponseDto> getByUserId(Long userId) {
-        return toResponses(loanRepository.findByUserId(userId));
+    public List<LoanDto> getByUserId(Long userId) {
+        return toDtos(loanRepository.findByUserId(userId));
     }
 
     @Override
     @Transactional
-    public LoanResponseDto create(CreateLoanDto dto) {
-        UserResponseDto user = usersModule.getById(dto.userId()).orElseThrow(LoanUserNotFoundException::new);
+    public LoanDto create(CreateLoanDto dto) {
+        UserSummary user = usersModule.getById(dto.userId()).orElseThrow(LoanUserNotFoundException::new);
 
         // Bloquea el libro y comprueba su disponibilidad (BookNotFound / BookNotAvailable)
-        BookResponseDto book = catalogModule.reserve(dto.bookId());
+        BookSummary book = requireReserved(catalogModule.reserve(dto.bookId()));
 
-        Loan loan = loanMapper.toModel(dto);
-        loan.setLoanDate(LocalDate.now());
+        Loan loan = Loan.open(dto.bookId(), dto.userId(), LocalDate.now());
 
-        return loanMapper.toResponse(loanRepository.save(loan), book, user);
+        return loanMapper.toDto(loanRepository.save(loan), book, user);
     }
 
     @Override
     @Transactional
-    public LoanResponseDto returnLoan(Long id) {
+    public LoanDto returnLoan(Long id) {
         Loan loan = loanRepository.findById(id).orElseThrow(LoanNotFoundException::new);
 
-        // Bloquea el libro para serializar con create y revalida tras el bloqueo. Si el préstamo ya estaba
-        // devuelto, la excepción siguiente revierte la transacción y deshace también la liberación.
-        BookResponseDto book = catalogModule.release(loan.getBookId());
+        // Bloquea el libro para serializar con create. Si el préstamo ya estaba devuelto, markReturned lanza
+        // y la transacción se revierte, deshaciendo también la liberación. Una devolución concurrente que
+        // se colara entre la lectura y el bloqueo la detecta el @Version del préstamo al guardar
+        // (LoanConcurrentModificationException) y también revierte la liberación.
+        BookSummary book = requireReleased(catalogModule.release(loan.bookId()));
 
-        if (loan.getReturnDate() != null) {
-            throw new LoanAlreadyReturnedException();
-        }
-        loan.setReturnDate(LocalDate.now());
+        Loan returned = loan.markReturned(LocalDate.now());
 
-        UserResponseDto user = usersModule.getById(loan.getUserId()).orElseThrow(LoanUserNotFoundException::new);
-        return loanMapper.toResponse(loanRepository.save(loan), book, user);
+        UserSummary user = usersModule.getById(returned.userId()).orElseThrow(LoanUserNotFoundException::new);
+        return loanMapper.toDto(loanRepository.save(returned), book, user);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public boolean existsByBookId(Long bookId) {
-        return loanRepository.existsByBookId(bookId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean existsByUserId(Long userId) {
-        return loanRepository.existsByUserId(userId);
-    }
-
-    private LoanResponseDto toResponse(Loan loan) {
-        BookResponseDto book = catalogModule.getById(loan.getBookId()).orElseThrow(BookNotFoundException::new);
-        UserResponseDto user = usersModule.getById(loan.getUserId()).orElseThrow(LoanUserNotFoundException::new);
-        return loanMapper.toResponse(loan, book, user);
+    private LoanDto toDto(Loan loan) {
+        BookSummary book = catalogModule.getById(loan.bookId()).orElseThrow(LoanBookNotFoundException::new);
+        UserSummary user = usersModule.getById(loan.userId()).orElseThrow(LoanUserNotFoundException::new);
+        return loanMapper.toDto(loan, book, user);
     }
 
     /** Resuelve libros y usuarios en bloque (2 consultas) en lugar de una por préstamo. */
-    private List<LoanResponseDto> toResponses(List<Loan> loans) {
+    private List<LoanDto> toDtos(List<Loan> loans) {
         if (loans.isEmpty()) {
             return List.of();
         }
-        Set<Long> bookIds = loans.stream().map(Loan::getBookId).collect(Collectors.toSet());
-        Set<Long> userIds = loans.stream().map(Loan::getUserId).collect(Collectors.toSet());
-        Map<Long, BookResponseDto> books = catalogModule.getByIds(bookIds);
-        Map<Long, UserResponseDto> users = usersModule.getByIds(userIds);
+        Set<Long> bookIds = loans.stream().map(Loan::bookId).collect(Collectors.toSet());
+        Set<Long> userIds = loans.stream().map(Loan::userId).collect(Collectors.toSet());
+        Map<Long, BookSummary> books = catalogModule.getByIds(bookIds);
+        Map<Long, UserSummary> users = usersModule.getByIds(userIds);
 
         return loans.stream()
-                .map(loan -> loanMapper.toResponse(loan,
-                        requireBook(books, loan.getBookId()), requireUser(users, loan.getUserId())))
+                .map(loan -> loanMapper.toDto(loan,
+                        requireBook(books, loan.bookId()), requireUser(users, loan.userId())))
                 .toList();
     }
 
-    private static BookResponseDto requireBook(Map<Long, BookResponseDto> books, Long id) {
-        BookResponseDto book = books.get(id);
+    private static BookSummary requireReserved(ReservationResult result) {
+        return switch (result.status()) {
+            case OK -> result.book();
+            case NOT_FOUND -> throw new LoanBookNotFoundException();
+            case NOT_AVAILABLE, ALREADY_AVAILABLE -> throw new LoanBookNotAvailableException();
+        };
+    }
+
+    private static BookSummary requireReleased(ReservationResult result) {
+        return switch (result.status()) {
+            case OK -> result.book();
+            case NOT_FOUND -> throw new LoanBookNotFoundException();
+            case ALREADY_AVAILABLE, NOT_AVAILABLE -> throw new LoanBookAlreadyAvailableException();
+        };
+    }
+
+    private static BookSummary requireBook(Map<Long, BookSummary> books, Long id) {
+        BookSummary book = books.get(id);
         if (book == null) {
-            throw new BookNotFoundException();
+            throw new LoanBookNotFoundException();
         }
         return book;
     }
 
-    private static UserResponseDto requireUser(Map<Long, UserResponseDto> users, Long id) {
-        UserResponseDto user = users.get(id);
+    private static UserSummary requireUser(Map<Long, UserSummary> users, Long id) {
+        UserSummary user = users.get(id);
         if (user == null) {
             throw new LoanUserNotFoundException();
         }

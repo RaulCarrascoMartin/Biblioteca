@@ -1,83 +1,134 @@
 package com.example.demo.auth.internal.controller;
 
-import com.example.demo.auth.internal.controller.dto.LoginDto;
-import com.example.demo.auth.internal.controller.dto.RegisterDto;
-import com.example.demo.auth.internal.controller.dto.RegisterResponse;
-import com.example.demo.auth.internal.controller.handler.AuthExceptionHandler;
+import com.example.demo.auth.internal.controller.mapper.AuthWebMapperImpl;
+import com.example.demo.auth.internal.domain.dto.RegisterUserDto;
+import com.example.demo.auth.internal.domain.dto.RegisteredUserDto;
+import com.example.demo.auth.internal.domain.dto.TokenPairDto;
 import com.example.demo.auth.internal.usecase.AuthUseCase;
+import com.example.demo.config.RateLimitFilter;
+import com.example.demo.config.SecurityConfig;
+import com.example.demo.shared.AuthenticatedPrincipal;
+import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.InvalidCredentialsException;
 import com.example.demo.shared.Requester;
-import jakarta.servlet.http.Cookie;
+import com.example.demo.shared.TokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.MethodParameter;
-import org.springframework.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.bind.support.WebDataBinderFactory;
-import org.springframework.web.context.request.NativeWebRequest;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.example.demo.support.TestAuthentication.asUser;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Prueba HTTP del controller en aislamiento: caso de uso simulado, sin Spring Security ni {@code config}. */
-@ExtendWith(MockitoExtension.class)
+/** HTTP con la {@code SecurityConfig} real: rutas públicas, 401 sin identidad, 403 y traducción de errores. */
+@WebMvcTest(AuthController.class)
+@Import({SecurityConfig.class, AuthWebMapperImpl.class})
 class AuthControllerTest {
 
-    private static final Requester REQUESTER = new Requester(1L, Set.of("USER"));
+    private static final Requester USER = new Requester(1L, Set.of("USER"));
+    private static final String LOGIN_BODY = "{\"email\":\"lex@test.es\",\"password\":\"Pass1234\"}";
+    private static final String REFRESH_BODY = "{\"refreshToken\":\"r-token\"}";
 
-    @Mock
-    private AuthUseCase useCase;
-
+    @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private RateLimitFilter rateLimitFilter;
+
+    @MockitoBean
+    private AuthUseCase useCase;
+    // Colaborador del filtro JWT de la SecurityConfig real
+    @MockitoBean
+    private TokenProvider tokenProvider;
 
     @BeforeEach
     void setUp() {
-        HandlerMethodArgumentResolver fixedRequester = new HandlerMethodArgumentResolver() {
-            @Override
-            public boolean supportsParameter(MethodParameter parameter) {
-                return Requester.class.equals(parameter.getParameterType());
-            }
-
-            @Override
-            public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
-                                          NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-                return REQUESTER;
-            }
-        };
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(useCase))
-                .setCustomArgumentResolvers(fixedRequester)
-                .setControllerAdvice(new AuthExceptionHandler())
-                .build();
+        rateLimitFilter.reset();
     }
 
     private static String registerJson(String name, String email, String password) {
         return "{\"nombre\":\"%s\",\"email\":\"%s\",\"password\":\"%s\"}".formatted(name, email, password);
     }
 
+    // ---- rutas públicas
+
+    @Test
+    void registerLoginAndRefreshArePublic() throws Exception {
+        when(useCase.register(any())).thenReturn(Optional.empty());
+        when(useCase.login("lex@test.es", "Pass1234")).thenReturn(new TokenPairDto("a", "r"));
+        when(useCase.refresh("r-token")).thenReturn(new TokenPairDto("a2", "r2"));
+
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(registerJson("Ana", "ana@test.es", "Clave1234")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(LOGIN_BODY))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void logoutWithoutIdentityIs401Json() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("No autenticado"));
+
+        verifyNoInteractions(useCase);
+    }
+
+    @Test
+    void invalidBearerTokenIs401() throws Exception {
+        when(tokenProvider.validate("basura")).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/api/auth/logout").header("Authorization", "Bearer basura")
+                        .contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validBearerTokenOpensLogoutAndBuildsTheRequesterFromTheToken() throws Exception {
+        when(tokenProvider.validate("jwt")).thenReturn(Optional.of(new AuthenticatedPrincipal(1L, List.of("ROLE_USER"))));
+
+        mockMvc.perform(post("/api/auth/logout").header("Authorization", "Bearer jwt")
+                        .contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Sesión cerrada"));
+
+        verify(useCase).logout(USER, "r-token");
+    }
+
+    @Test
+    void forbiddenFromTheUseCaseIs403() throws Exception {
+        org.mockito.Mockito.doThrow(new ForbiddenException()).when(useCase).logout(USER, "r-token");
+
+        mockMvc.perform(post("/api/auth/logout").with(asUser(1L, "USER"))
+                        .contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- register
+
     @Test
     void registerReturnsUserWithHistoricalFieldNames() throws Exception {
-        when(useCase.register(new RegisterDto("Ana", "ana@test.es", "Clave1234")))
-                .thenReturn(Optional.of(new RegisterResponse(1L, "Ana", "ana@test.es", "USER")));
+        when(useCase.register(new RegisterUserDto("Ana", "ana@test.es", "Clave1234")))
+                .thenReturn(Optional.of(new RegisteredUserDto(1L, "Ana", "ana@test.es", "USER")));
 
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("Ana", "ana@test.es", "Clave1234")))
@@ -116,21 +167,23 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    @Test
-    void loginReturnsTokenInBodyAndHttpOnlyCookie() throws Exception {
-        when(useCase.login(new LoginDto("lex@test.es", "Pass1234"))).thenReturn("jwt-token");
+    // ---- login
 
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"lex@test.es\",\"password\":\"Pass1234\"}"))
+    @Test
+    void loginReturnsTheTokenPairAndNoCookie() throws Exception {
+        when(useCase.login("lex@test.es", "Pass1234")).thenReturn(new TokenPairDto("jwt", "opaque"));
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(LOGIN_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("jwt-token"))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("jwt_token=jwt-token")))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("HttpOnly")));
+                .andExpect(jsonPath("$.accessToken").value("jwt"))
+                .andExpect(jsonPath("$.refreshToken").value("opaque"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().doesNotExist("Set-Cookie"));
     }
 
     @Test
     void loginWithInvalidCredentialsReturns401() throws Exception {
-        when(useCase.login(any())).thenThrow(new InvalidCredentialsException());
+        when(useCase.login(any(), any())).thenThrow(new InvalidCredentialsException());
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"x@test.es\",\"password\":\"mala\"}"))
@@ -143,26 +196,43 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
 
-        verify(useCase, never()).login(any());
+        verify(useCase, never()).login(any(), any());
     }
 
+    // ---- refresh
+
     @Test
-    void logoutRevokesHeaderAndCookieTokensAndClearsCookie() throws Exception {
-        mockMvc.perform(post("/api/auth/logout")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer h-token")
-                        .cookie(new Cookie("jwt_token", "c-token")))
+    void refreshReturnsTheNewPair() throws Exception {
+        when(useCase.refresh("r-token")).thenReturn(new TokenPairDto("jwt2", "opaque2"));
+
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Sesión cerrada"))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
-
-        verify(useCase).logout(REQUESTER, List.of("h-token", "c-token"));
+                .andExpect(jsonPath("$.accessToken").value("jwt2"))
+                .andExpect(jsonPath("$.refreshToken").value("opaque2"));
     }
 
     @Test
-    void logoutIgnoresNonBearerAuthorizationHeader() throws Exception {
-        mockMvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Basic abc"))
-                .andExpect(status().isOk());
+    void refreshWithInvalidTokenReturns401() throws Exception {
+        when(useCase.refresh(any())).thenThrow(new InvalidCredentialsException());
 
-        verify(useCase).logout(REQUESTER, List.of());
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refreshWithoutTokenReturns400() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+
+        verify(useCase, never()).refresh(any());
+    }
+
+    // ---- logout
+
+    @Test
+    void logoutWithoutRefreshTokenReturns400() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").with(asUser(1L, "USER"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
     }
 }

@@ -1,6 +1,6 @@
 package com.example.demo.loans.internal.application;
 
-import com.example.demo.loans.internal.domain.repository.LoanRepository;
+import com.example.demo.loans.internal.domain.service.LoanQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,20 +15,20 @@ import static org.mockito.Mockito.when;
 class UserWithLoansCheckerTest {
 
     @Mock
-    private LoanRepository loanRepository;
+    private LoanQueryService loanQueryService;
     @InjectMocks
     private UserWithLoansChecker checker;
 
     @Test
     void isInUseWhenTheUserHasLoans() {
-        when(loanRepository.existsByUserId(1L)).thenReturn(true);
+        when(loanQueryService.existsByUserId(1L)).thenReturn(true);
 
         assertTrue(checker.isInUse(1L));
     }
 
     @Test
     void isNotInUseWhenTheUserHasNoLoans() {
-        when(loanRepository.existsByUserId(2L)).thenReturn(false);
+        when(loanQueryService.existsByUserId(2L)).thenReturn(false);
 
         assertFalse(checker.isInUse(2L));
     }

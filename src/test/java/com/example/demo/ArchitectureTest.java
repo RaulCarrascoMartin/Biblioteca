@@ -23,8 +23,8 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
  * repository, exception), persistence}.
  *
  * <p>Flujos: {@code Controller -> UseCase -> Service -> Repository <- RepositoryImpl} (HTTP) y
- * {@code XModule -> XModuleImpl -> Service} (otros módulos). Por D7 el {@code UseCase} mapea a DTO web,
- * así que depende de {@code controller.dto} y {@code controller.mapper} (no de controllers ni handlers).
+ * {@code XModule -> XModuleImpl -> Service} (otros módulos). El {@code UseCase} no depende de nada de
+ * {@code controller}. {@code persistence}: {@code dao (entity, impl.jpa)} y {@code repository (mapper, impl)}.
  */
 @AnalyzeClasses(packages = "com.example.demo", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
@@ -36,6 +36,7 @@ class ArchitectureTest {
     private static final String DOMAIN = BASE + ".*.internal.domain..";
     private static final String SERVICE = BASE + ".*.internal.domain.service..";
     private static final String PERSISTENCE = BASE + ".*.internal.persistence..";
+    private static final String PERSISTENCE_DAO_JPA = BASE + ".*.internal.persistence.dao.impl.jpa..";
     private static final String APPLICATION = BASE + ".*.internal.application..";
     private static final String[] BUSINESS_MODULES = {"catalog", "users", "loans", "auth"};
 
@@ -72,7 +73,15 @@ class ArchitectureTest {
                             BASE + ".*.internal.domain.model", BASE + ".*.internal.domain.dto",
                             BASE + ".*.internal.domain.mapper", BASE + ".*.internal.domain.service",
                             BASE + ".*.internal.domain.repository", BASE + ".*.internal.domain.exception",
-                            BASE + ".*.internal.persistence");
+                            BASE + ".*.internal.persistence.dao",
+                            BASE + ".*.internal.persistence.dao.entity",
+                            BASE + ".*.internal.persistence.dao.impl.jpa",
+                            BASE + ".*.internal.persistence.repository",
+                            BASE + ".*.internal.persistence.repository.mapper",
+                            BASE + ".*.internal.persistence.repository.impl",
+                            BASE + ".*.internal.persistence.projection",
+                            // Excepción documentada: vetos síncronos entre módulos (@NamedInterface("spi"))
+                            BASE + ".*.spi");
 
     // ---- Capas dentro del módulo ---------------------------------------------------------------
 
@@ -87,13 +96,10 @@ class ArchitectureTest {
                     .should().dependOnClassesThat().haveSimpleNameEndingWith("UseCase");
 
     @ArchTest
-    static final ArchRule usecases_do_not_use_controllers_or_handlers_or_persistence =
-            // Sí pueden usar controller.dto y controller.mapper (D7: el caso de uso mapea a DTO web)
+    static final ArchRule usecases_do_not_use_controller_or_persistence =
             noClasses().that().resideInAPackage(USECASE)
                     .should().dependOnClassesThat().resideInAnyPackage(
-                            PERSISTENCE, DOMAIN + "repository..", BASE + ".*.internal.controller.handler..")
-                    .orShould().dependOnClassesThat().haveSimpleNameEndingWith("Controller")
-                    .orShould().dependOnClassesThat().haveSimpleNameEndingWith("HttpApi");
+                            CONTROLLER, PERSISTENCE, DOMAIN + "repository..");
 
     @ArchTest
     static final ArchRule module_api_and_impl_do_not_depend_on_usecases_or_controllers =
@@ -132,6 +138,9 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule domain_services_are_interfaces_or_impl =
             classes().that().resideInAPackage(SERVICE).and().haveSimpleNameNotEndingWith("Impl")
+                    .and().areNotAnonymousClasses().and().areNotNestedClasses()
+                    .and(com.tngtech.archunit.base.DescribedPredicate.describe("not synthetic",
+                            (JavaClass c) -> !c.getModifiers().contains(JavaModifier.SYNTHETIC)))
                     .should().beInterfaces();
 
     // ---- Ubicación por sufijo --------------------------------------------------------------------
@@ -145,8 +154,35 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule repositories_live_in_domain_repository =
             classes().that().haveSimpleNameEndingWith("Repository").and().resideInAPackage(BASE + ".*.internal..")
-                    .and().haveSimpleNameNotStartingWith("Jpa")
+                    .and().haveSimpleNameNotEndingWith("SpringDataRepository")
                     .should().resideInAPackage(DOMAIN + "repository..");
+
+    @ArchTest
+    static final ArchRule spring_data_repositories_live_in_dao_impl_jpa =
+            classes().that().haveSimpleNameEndingWith("SpringDataRepository")
+                    .should().resideInAPackage(PERSISTENCE_DAO_JPA);
+
+    @ArchTest
+    static final ArchRule dtos_live_in_dto_packages =
+            classes().that().haveSimpleNameEndingWith("Dto").and().areNotAnonymousClasses()
+                    .and().resideInAPackage(BASE + "..")
+                    .should().resideInAnyPackage(DOMAIN + "dto..", BASE + ".*.dto..");
+
+    @ArchTest
+    static final ArchRule web_dtos_live_in_controller_dto =
+            classes().that().haveSimpleNameEndingWith("Request").or().haveSimpleNameEndingWith("Response")
+                    .and().resideInAPackage(BASE + "..")
+                    .should().resideInAPackage(BASE + ".*.internal.controller.dto..");
+
+    @ArchTest
+    static final ArchRule entities_live_in_dao_entity =
+            classes().that().haveSimpleNameEndingWith("Entity").and().resideInAPackage(BASE + "..")
+                    .should().resideInAPackage(BASE + ".*.internal.persistence.dao.entity..");
+
+    @ArchTest
+    static final ArchRule persistence_mappers_live_in_repository_mapper =
+            classes().that().haveSimpleNameEndingWith("PersistenceMapper").and().resideInAPackage(BASE + "..")
+                    .should().resideInAPackage(BASE + ".*.internal.persistence.repository.mapper..");
 
     @ArchTest
     static final ArchRule repository_impls_live_in_persistence =
@@ -173,9 +209,9 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule mappers_live_in_mapper_packages_and_use_mapstruct =
             classes().that().haveSimpleNameEndingWith("Mapper").and().resideInAPackage(BASE + ".*.internal..")
+                    .and().haveSimpleNameNotEndingWith("PersistenceMapper")
                     .should().resideInAnyPackage(
-                            BASE + ".*.internal.controller.mapper..", BASE + ".*.internal.domain.mapper..",
-                            PERSISTENCE)
+                            BASE + ".*.internal.controller.mapper..", BASE + ".*.internal.domain.mapper..")
                     .andShould().beAnnotatedWith(org.mapstruct.Mapper.class);
 
     @ArchTest
@@ -194,14 +230,14 @@ class ArchitectureTest {
                     .should().resideInAPackage(PERSISTENCE);
 
     @ArchTest
-    static final ArchRule domain_models_are_not_exposed_by_public_dtos_and_names_end_in_dto =
-            classes().that().resideInAnyPackage(BASE + ".*.dto..").and().areNotInterfaces().and().areNotEnums()
-                    .and().haveSimpleNameNotEndingWith("package-info")
-                    .should().haveSimpleNameEndingWith("Dto");
+    static final ArchRule public_dtos_do_not_expose_domain_models =
+            // Nombres libres en <modulo>.dto (BookSummary, UserSummary, NewUser...)
+            noClasses().that().resideInAnyPackage(BASE + ".*.dto..")
+                    .should().dependOnClassesThat().resideInAnyPackage(DOMAIN);
 
     @ArchTest
     static final ArchRule domain_and_persistence_do_not_use_web_dto_naming_mixups =
-            // Los DTO del dominio terminan en Dto; los del controller en Request/Response/Dto (Login/Register)
+            // Los DTO del dominio terminan en Dto
             classes().that().resideInAPackage(DOMAIN + "dto..").should().haveSimpleNameEndingWith("Dto");
 
     // ---- shared y config -------------------------------------------------------------------------
@@ -297,7 +333,7 @@ class ArchitectureTest {
         return dot < 0 ? rest : rest.substring(0, dot);
     }
 
-    /** Todo método público de un UseCase recibe Requester primero, salvo register y login de AuthUseCase. */
+    /** Todo método público de un UseCase recibe Requester primero, salvo register, login y refresh de AuthUseCase. */
     private static ArchCondition<JavaClass> haveRequesterAsFirstParameterInPublicMethods() {
         return new ArchCondition<>("have Requester as the first parameter in every public method") {
             @Override
@@ -307,7 +343,8 @@ class ArchitectureTest {
                         continue;
                     }
                     boolean publicFlow = useCase.getSimpleName().equals("AuthUseCase")
-                            && (method.getName().equals("register") || method.getName().equals("login"));
+                            && (method.getName().equals("register") || method.getName().equals("login")
+                            || method.getName().equals("refresh"));
                     if (publicFlow) {
                         continue;
                     }

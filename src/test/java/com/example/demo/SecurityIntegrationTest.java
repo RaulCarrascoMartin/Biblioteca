@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import com.example.demo.users.UsersModule;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.http.MediaType;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Seguridad extremo a extremo: rutas públicas, 401, sesión (cookie/logout), rate limit y hash en BD. */
+/** Seguridad extremo a extremo: rutas públicas, 401, par de tokens (login/refresh/logout), rate limit y hash en BD. */
 class SecurityIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
@@ -111,21 +113,49 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         assertEquals("USER", usersModule.getByEmail("x@test.es").orElseThrow().role());
     }
 
+    private JsonNode login(String email) throws Exception {
+        var result = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", email, "password", "Pass1234"))))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Set-Cookie"))
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions refresh(String refreshToken) throws Exception {
+        return mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("refreshToken", refreshToken))));
+    }
+
     @Test
-    void loginReturnsTokenAndCookieThatOpensProtectedEndpoints() throws Exception {
+    void loginReturnsATokenPairAndTheAccessTokenOpensProtectedEndpoints() throws Exception {
         createUser("Lector", "lex@test.es", "USER");
 
-        var result = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("email", "lex@test.es", "password", "Pass1234"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isNotEmpty())
-                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("jwt_token=")))
-                .andReturn();
-        String token = objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
+        JsonNode pair = login("lex@test.es");
 
-        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + token))
+        assertTrue(pair.get("refreshToken").asText().length() >= 32);
+        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + pair.get("accessToken").asText()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("lex@test.es"));
+    }
+
+    @Test
+    void theRefreshTokenIsStoredOnlyAsAHash() throws Exception {
+        createUser("Lector", "hash@test.es", "USER");
+
+        String refresh = login("hash@test.es").get("refreshToken").asText();
+
+        String stored = jdbc.queryForObject("SELECT token_hash FROM refresh_tokens", String.class);
+        assertNotEquals(refresh, stored);
+        assertEquals(64, stored.length());
+    }
+
+    @Test
+    void theOldJwtCookieNoLongerAuthenticates() throws Exception {
+        createUser("Ana", "cookie@test.es", "USER");
+
+        mockMvc.perform(get("/api/usuarios/me").cookie(new Cookie("jwt_token", tokenFor("cookie@test.es"))))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -138,33 +168,74 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void logoutWithCookieRevokesTheToken() throws Exception {
-        createUser("Ana", "cookie@test.es", "USER");
-        Cookie cookie = new Cookie("jwt_token", tokenFor("cookie@test.es"));
+    void refreshRotatesTheTokenAndTheOldOneIsRejected() throws Exception {
+        createUser("Ana", "rot@test.es", "USER");
+        JsonNode first = login("rot@test.es");
 
-        mockMvc.perform(get("/api/usuarios/me").cookie(cookie)).andExpect(status().isOk());
-        mockMvc.perform(post("/api/auth/logout").cookie(cookie))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")));
-        mockMvc.perform(get("/api/usuarios/me").cookie(cookie)).andExpect(status().isUnauthorized());
+        var result = refresh(first.get("refreshToken").asText()).andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty()).andReturn();
+        JsonNode second = objectMapper.readTree(result.getResponse().getContentAsString());
+
+        assertNotEquals(first.get("refreshToken").asText(), second.get("refreshToken").asText());
+        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + second.get("accessToken").asText()))
+                .andExpect(status().isOk());
     }
 
     @Test
-    void logoutWithBearerRevokesTheToken() throws Exception {
+    void reusingARotatedRefreshRevokesTheWholeSession() throws Exception {
+        createUser("Ana", "reuse@test.es", "USER");
+        String old = login("reuse@test.es").get("refreshToken").asText();
+        var rotated = refresh(old).andExpect(status().isOk()).andReturn();
+        String current = objectMapper.readTree(rotated.getResponse().getContentAsString()).get("refreshToken").asText();
+
+        refresh(old).andExpect(status().isUnauthorized());
+        refresh(current).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void expiredRefreshIs401() throws Exception {
+        createUser("Ana", "exp@test.es", "USER");
+        String refresh = login("exp@test.es").get("refreshToken").asText();
+        jdbc.update("UPDATE refresh_tokens SET expires_at = TIMESTAMP '2000-01-01 00:00:00'");
+
+        refresh(refresh).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unknownRefreshIs401AndMissingRefreshIs400() throws Exception {
+        refresh("desconocido").andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void logoutRevokesTheRefreshToken() throws Exception {
         createUser("Ana", "bearer@test.es", "USER");
-        String auth = bearer("bearer@test.es");
+        JsonNode pair = login("bearer@test.es");
 
-        mockMvc.perform(post("/api/auth/logout").header("Authorization", auth)).andExpect(status().isOk());
-        mockMvc.perform(get("/api/usuarios/me").header("Authorization", auth)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/auth/logout").contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + pair.get("accessToken").asText())
+                        .content(json(Map.of("refreshToken", pair.get("refreshToken").asText()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Sesión cerrada"));
+
+        refresh(pair.get("refreshToken").asText()).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void tokenWithOldVersionIsRejectedAfterRevokingSessions() throws Exception {
+    void refreshAfterRevokingSessionsIs401() throws Exception {
         long id = createUser("Ana", "ver@test.es", "USER");
-        String auth = bearer("ver@test.es");
+        String refresh = login("ver@test.es").get("refreshToken").asText();
         jdbc.update("UPDATE usuarios SET token_version = token_version + 1 WHERE id = ?", id);
 
-        mockMvc.perform(get("/api/usuarios/me").header("Authorization", auth)).andExpect(status().isUnauthorized());
+        refresh(refresh).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refreshIsPublicButLogoutNeedsTheAccessToken() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("refreshToken", "x"))))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
