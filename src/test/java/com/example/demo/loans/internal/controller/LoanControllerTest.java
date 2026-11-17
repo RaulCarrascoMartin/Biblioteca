@@ -11,7 +11,11 @@ import com.example.demo.loans.internal.domain.exception.LoanBookNotAvailableExce
 import com.example.demo.loans.internal.domain.exception.LoanBookNotFoundException;
 import com.example.demo.loans.internal.domain.exception.LoanConcurrentModificationException;
 import com.example.demo.loans.internal.domain.exception.LoanNotFoundException;
-import com.example.demo.loans.internal.usecase.LoanUseCase;
+import com.example.demo.loans.internal.usecase.CreateLoanUseCase;
+import com.example.demo.loans.internal.usecase.GetAllLoansUseCase;
+import com.example.demo.loans.internal.usecase.GetLoanUseCase;
+import com.example.demo.loans.internal.usecase.GetOwnLoansUseCase;
+import com.example.demo.loans.internal.usecase.ReturnLoanUseCase;
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.AuthenticatedPrincipal;
 import com.example.demo.shared.Requester;
@@ -42,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Prueba HTTP del controller con la {@code SecurityConfig} real: 401 sin identidad, 403 cuando el caso de
  * uso (simulado) deniega, contrato y traducción de errores. La política de acceso se prueba en
- * {@code LoanUseCaseTest}.
+ * los tests de los casos de uso.
  */
 @WebMvcTest(LoanController.class)
 @Import({SecurityConfig.class, LoanWebMapperImpl.class})
@@ -54,7 +58,19 @@ class LoanControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private LoanUseCase useCase;
+    private GetAllLoansUseCase getAllLoansUseCase;
+
+    @MockitoBean
+    private GetOwnLoansUseCase getOwnLoansUseCase;
+
+    @MockitoBean
+    private GetLoanUseCase getLoanUseCase;
+
+    @MockitoBean
+    private CreateLoanUseCase createLoanUseCase;
+
+    @MockitoBean
+    private ReturnLoanUseCase returnLoanUseCase;
     // Colaborador del filtro JWT de la SecurityConfig real
     @MockitoBean
     private TokenProvider tokenProvider;
@@ -83,13 +99,13 @@ class LoanControllerTest {
         mockMvc.perform(post("/api/prestamos").param("libroId", "3")).andExpect(status().isUnauthorized());
         mockMvc.perform(put("/api/prestamos/1/devolver")).andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(getAllLoansUseCase, getOwnLoansUseCase, getLoanUseCase, createLoanUseCase, returnLoanUseCase);
     }
 
     @Test
     void forbiddenFromUseCaseIs403() throws Exception {
-        when(useCase.getAll(REQUESTER)).thenThrow(new ForbiddenException());
-        when(useCase.getById(REQUESTER, 1L)).thenThrow(new ForbiddenException());
+        when(getAllLoansUseCase.execute(REQUESTER)).thenThrow(new ForbiddenException());
+        when(getLoanUseCase.execute(REQUESTER, 1L)).thenThrow(new ForbiddenException());
 
         mockMvc.perform(get("/api/prestamos").with(ana())).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/prestamos/1").with(ana())).andExpect(status().isForbidden());
@@ -104,7 +120,7 @@ class LoanControllerTest {
 
     @Test
     void getAllReturnsLoansWithHistoricalFieldNames() throws Exception {
-        when(useCase.getAll(REQUESTER)).thenReturn(List.of(loan(1L)));
+        when(getAllLoansUseCase.execute(REQUESTER)).thenReturn(List.of(loan(1L)));
 
         mockMvc.perform(get("/api/prestamos").with(ana()))
                 .andExpect(status().isOk())
@@ -120,7 +136,7 @@ class LoanControllerTest {
 
     @Test
     void getOwnReturnsTheRequestersLoans() throws Exception {
-        when(useCase.getOwn(REQUESTER)).thenReturn(List.of(loan(1L)));
+        when(getOwnLoansUseCase.execute(REQUESTER)).thenReturn(List.of(loan(1L)));
 
         mockMvc.perform(get("/api/prestamos/mios").with(ana()))
                 .andExpect(status().isOk())
@@ -129,7 +145,7 @@ class LoanControllerTest {
 
     @Test
     void getByIdReturnsTheLoan() throws Exception {
-        when(useCase.getById(REQUESTER, 1L)).thenReturn(loan(1L));
+        when(getLoanUseCase.execute(REQUESTER, 1L)).thenReturn(loan(1L));
 
         mockMvc.perform(get("/api/prestamos/1").with(ana()))
                 .andExpect(status().isOk())
@@ -138,7 +154,7 @@ class LoanControllerTest {
 
     @Test
     void getByIdUnknownIs404WithErrorProperty() throws Exception {
-        when(useCase.getById(REQUESTER, 9L)).thenThrow(new LoanNotFoundException());
+        when(getLoanUseCase.execute(REQUESTER, 9L)).thenThrow(new LoanNotFoundException());
 
         mockMvc.perform(get("/api/prestamos/9").with(ana()))
                 .andExpect(status().isNotFound())
@@ -148,7 +164,7 @@ class LoanControllerTest {
 
     @Test
     void createPassesTheBookIdAndReturns201WithLocation() throws Exception {
-        when(useCase.create(REQUESTER, 3L)).thenReturn(loan(1L));
+        when(createLoanUseCase.execute(REQUESTER, 3L)).thenReturn(loan(1L));
 
         mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
                 .andExpect(status().isCreated())
@@ -158,7 +174,7 @@ class LoanControllerTest {
 
     @Test
     void createWithUnknownBookIs404() throws Exception {
-        when(useCase.create(REQUESTER, 99L)).thenThrow(new LoanBookNotFoundException());
+        when(createLoanUseCase.execute(REQUESTER, 99L)).thenThrow(new LoanBookNotFoundException());
 
         mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "99"))
                 .andExpect(status().isNotFound());
@@ -166,7 +182,7 @@ class LoanControllerTest {
 
     @Test
     void createWithUnavailableBookIs409() throws Exception {
-        when(useCase.create(REQUESTER, 3L)).thenThrow(new LoanBookNotAvailableException());
+        when(createLoanUseCase.execute(REQUESTER, 3L)).thenThrow(new LoanBookNotAvailableException());
 
         mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
                 .andExpect(status().isConflict())
@@ -179,7 +195,7 @@ class LoanControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors").isArray());
 
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(getAllLoansUseCase, getOwnLoansUseCase, getLoanUseCase, createLoanUseCase, returnLoanUseCase);
     }
 
     @Test
@@ -187,12 +203,12 @@ class LoanControllerTest {
         mockMvc.perform(post("/api/prestamos").with(ana()))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(getAllLoansUseCase, getOwnLoansUseCase, getLoanUseCase, createLoanUseCase, returnLoanUseCase);
     }
 
     @Test
     void returnLoanReturns200() throws Exception {
-        when(useCase.returnLoan(REQUESTER, 1L)).thenReturn(loan(1L));
+        when(returnLoanUseCase.execute(REQUESTER, 1L)).thenReturn(loan(1L));
 
         mockMvc.perform(put("/api/prestamos/1/devolver").with(ana()))
                 .andExpect(status().isOk())
@@ -201,7 +217,7 @@ class LoanControllerTest {
 
     @Test
     void returnLoanAlreadyReturnedIs409() throws Exception {
-        when(useCase.returnLoan(REQUESTER, 1L)).thenThrow(new LoanAlreadyReturnedException());
+        when(returnLoanUseCase.execute(REQUESTER, 1L)).thenThrow(new LoanAlreadyReturnedException());
 
         mockMvc.perform(put("/api/prestamos/1/devolver").with(ana()))
                 .andExpect(status().isConflict())
@@ -210,7 +226,7 @@ class LoanControllerTest {
 
     @Test
     void returnLoanConcurrentModificationIs409() throws Exception {
-        when(useCase.returnLoan(REQUESTER, 1L)).thenThrow(new LoanConcurrentModificationException(null));
+        when(returnLoanUseCase.execute(REQUESTER, 1L)).thenThrow(new LoanConcurrentModificationException(null));
 
         mockMvc.perform(put("/api/prestamos/1/devolver").with(ana()))
                 .andExpect(status().isConflict());
@@ -218,7 +234,7 @@ class LoanControllerTest {
 
     @Test
     void createInvalidLoanIs422() throws Exception {
-        when(useCase.create(REQUESTER, 3L)).thenThrow(new InvalidLoanException("El libro es obligatorio"));
+        when(createLoanUseCase.execute(REQUESTER, 3L)).thenThrow(new InvalidLoanException("El libro es obligatorio"));
 
         mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
                 .andExpect(status().isUnprocessableEntity());

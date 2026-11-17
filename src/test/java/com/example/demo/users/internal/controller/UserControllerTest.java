@@ -11,7 +11,12 @@ import com.example.demo.users.internal.domain.exception.EmailAlreadyRegisteredEx
 import com.example.demo.users.internal.domain.exception.SelfDeletionException;
 import com.example.demo.users.internal.domain.exception.UserNotFoundException;
 import com.example.demo.users.internal.domain.exception.UserWithLoansException;
-import com.example.demo.users.internal.usecase.UserUseCase;
+import com.example.demo.users.internal.usecase.DeleteUserUseCase;
+import com.example.demo.users.internal.usecase.GetAllUsersUseCase;
+import com.example.demo.users.internal.usecase.GetCurrentUserUseCase;
+import com.example.demo.users.internal.usecase.GetUserUseCase;
+import com.example.demo.users.internal.usecase.RevokeUserSessionsUseCase;
+import com.example.demo.users.internal.usecase.UpdateUserUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -43,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Prueba HTTP del controller con la {@code SecurityConfig} real: 401 sin identidad, 403 cuando el caso
  * de uso (simulado) deniega, y traducción de errores. La política de acceso se prueba en
- * {@code UserUseCaseTest}.
+ * los tests de los casos de uso.
  */
 @WebMvcTest(UserController.class)
 @Import({SecurityConfig.class, UserWebMapperImpl.class})
@@ -56,7 +61,22 @@ class UserControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private UserUseCase useCase;
+    private GetAllUsersUseCase getAllUsersUseCase;
+
+    @MockitoBean
+    private GetCurrentUserUseCase getCurrentUserUseCase;
+
+    @MockitoBean
+    private GetUserUseCase getUserUseCase;
+
+    @MockitoBean
+    private UpdateUserUseCase updateUserUseCase;
+
+    @MockitoBean
+    private RevokeUserSessionsUseCase revokeUserSessionsUseCase;
+
+    @MockitoBean
+    private DeleteUserUseCase deleteUserUseCase;
     // Colaborador del filtro JWT de la SecurityConfig real (la identidad se publica con TestAuthentication)
     @MockitoBean
     private TokenProvider tokenProvider;
@@ -81,14 +101,14 @@ class UserControllerTest {
         mockMvc.perform(post("/api/usuarios/2/revocar-sesiones")).andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/api/usuarios/2")).andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(getAllUsersUseCase, getCurrentUserUseCase, getUserUseCase, updateUserUseCase, revokeUserSessionsUseCase, deleteUserUseCase);
     }
 
     @Test
     void forbiddenFromUseCaseIs403() throws Exception {
         Requester bob = new Requester(3L, Set.of("USER"));
-        when(useCase.getAll(bob)).thenThrow(new ForbiddenException());
-        doThrow(new ForbiddenException()).when(useCase).delete(bob, 2L);
+        when(getAllUsersUseCase.execute(bob)).thenThrow(new ForbiddenException());
+        doThrow(new ForbiddenException()).when(deleteUserUseCase).execute(bob, 2L);
 
         mockMvc.perform(get("/api/usuarios").with(asUser(3L, "USER")))
                 .andExpect(status().isForbidden());
@@ -100,7 +120,7 @@ class UserControllerTest {
 
     @Test
     void getAllReturnsUsersWithHistoricalFieldNamesAndNoPassword() throws Exception {
-        when(useCase.getAll(ADMIN)).thenReturn(List.of(ana()));
+        when(getAllUsersUseCase.execute(ADMIN)).thenReturn(List.of(ana()));
 
         mockMvc.perform(get("/api/usuarios").with(admin()))
                 .andExpect(status().isOk())
@@ -112,7 +132,7 @@ class UserControllerTest {
 
     @Test
     void meReturnsCurrentUser() throws Exception {
-        when(useCase.me(ADMIN)).thenReturn(ana());
+        when(getCurrentUserUseCase.execute(ADMIN)).thenReturn(ana());
 
         mockMvc.perform(get("/api/usuarios/me").with(admin()))
                 .andExpect(status().isOk())
@@ -121,7 +141,7 @@ class UserControllerTest {
 
     @Test
     void getByIdReturnsUser() throws Exception {
-        when(useCase.getById(ADMIN, 2L)).thenReturn(ana());
+        when(getUserUseCase.execute(ADMIN, 2L)).thenReturn(ana());
 
         mockMvc.perform(get("/api/usuarios/2").with(admin()))
                 .andExpect(status().isOk())
@@ -130,7 +150,7 @@ class UserControllerTest {
 
     @Test
     void getByIdUnknownIs404ProblemDetail() throws Exception {
-        when(useCase.getById(ADMIN, 9L)).thenThrow(new UserNotFoundException(9L));
+        when(getUserUseCase.execute(ADMIN, 9L)).thenThrow(new UserNotFoundException(9L));
 
         mockMvc.perform(get("/api/usuarios/9").with(admin()))
                 .andExpect(status().isNotFound())
@@ -141,7 +161,7 @@ class UserControllerTest {
 
     @Test
     void updateMapsRequestToDtoAndReturnsUpdatedUser() throws Exception {
-        when(useCase.update(ADMIN, 2L, new UserUpdateDto("Ana", "ana@x.es", "Nueva4567"))).thenReturn(ana());
+        when(updateUserUseCase.execute(ADMIN, 2L, new UserUpdateDto("Ana", "ana@x.es", "Nueva4567"))).thenReturn(ana());
 
         mockMvc.perform(put("/api/usuarios/2").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
@@ -171,7 +191,7 @@ class UserControllerTest {
 
     @Test
     void updateWithRepeatedEmailIs409() throws Exception {
-        when(useCase.update(any(), any(), any())).thenThrow(new EmailAlreadyRegisteredException());
+        when(updateUserUseCase.execute(any(), any(), any())).thenThrow(new EmailAlreadyRegisteredException());
 
         mockMvc.perform(put("/api/usuarios/2").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -186,7 +206,7 @@ class UserControllerTest {
         mockMvc.perform(post("/api/usuarios/2/revocar-sesiones").with(admin()))
                 .andExpect(status().isNoContent());
 
-        verify(useCase).revokeSessions(ADMIN, 2L);
+        verify(revokeUserSessionsUseCase).execute(ADMIN, 2L);
     }
 
     @Test
@@ -194,12 +214,12 @@ class UserControllerTest {
         mockMvc.perform(delete("/api/usuarios/2").with(admin()))
                 .andExpect(status().isNoContent());
 
-        verify(useCase).delete(ADMIN, 2L);
+        verify(deleteUserUseCase).execute(ADMIN, 2L);
     }
 
     @Test
     void deleteUserWithLoansIs409() throws Exception {
-        doThrow(new UserWithLoansException()).when(useCase).delete(ADMIN, 2L);
+        doThrow(new UserWithLoansException()).when(deleteUserUseCase).execute(ADMIN, 2L);
 
         mockMvc.perform(delete("/api/usuarios/2").with(admin()))
                 .andExpect(status().isConflict())
@@ -208,7 +228,7 @@ class UserControllerTest {
 
     @Test
     void deleteSelfIs409() throws Exception {
-        doThrow(new SelfDeletionException()).when(useCase).delete(ADMIN, 1L);
+        doThrow(new SelfDeletionException()).when(deleteUserUseCase).execute(ADMIN, 1L);
 
         mockMvc.perform(delete("/api/usuarios/1").with(admin()))
                 .andExpect(status().isConflict());

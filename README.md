@@ -6,7 +6,7 @@ Aplicación web de gestión de una biblioteca: catálogo de libros, préstamos y
 - **Base de datos:** MySQL en ejecución normal; H2 en memoria (modo MariaDB) para los tests. Esquema gestionado con **Flyway**.
 - **Frontend:** HTML + CSS + JavaScript sin framework ni paso de compilación, en `src/main/resources/static`.
 - **Arquitectura:** monolito modular (módulos `catalog`, `users`, `loans`, `auth`) con capas `controller → usecase → domain ← persistence` dentro de cada módulo. Las fronteras las verifican **Spring Modulith** y **ArchUnit**.
-- **Tests:** JUnit 5 + Mockito + MockMvc + ArchUnit + Spring Modulith + Testcontainers (MariaDB). `./mvnw clean test` ejecuta 531 tests: 503 pasan sin Docker y 28 (los de repositorio contra MariaDB) se omiten si no hay Docker.
+- **Tests:** JUnit 5 + Mockito + MockMvc + ArchUnit + Spring Modulith + Testcontainers (MariaDB). `./mvnw clean test` ejecuta 532 tests: 504 pasan sin Docker y 28 (los de repositorio contra MariaDB) se omiten si no hay Docker.
 
 Este documento explica **qué hace cada módulo y cada capa, de qué depende y por qué se tomó cada decisión**, con especial atención a la arquitectura.
 
@@ -163,7 +163,7 @@ Estructura de cada módulo (ejemplo `catalog`; `users`, `loans` y `auth` siguen 
       │    ├── dto/      BookRequest, BookResponse
       │    ├── handler/  BookExceptionHandler
       │    └── mapper/   BookWebMapper
-      ├── usecase/       BookUseCase
+      ├── usecase/       GetAllBooksUseCase, GetBookUseCase, CreateBookUseCase, UpdateBookUseCase, DeleteBookUseCase
       ├── domain/
       │    ├── model/       Book, Isbn, Genre
       │    ├── dto/         BookDto, SaveBookDto
@@ -193,7 +193,7 @@ La lógica de negocio vive en el **servicio de dominio**; HTTP y otros módulos 
 | Capa | Responsabilidad | Puede usar | **No** puede usar |
 |---|---|---|---|
 | **`controller`** | Contrato HTTP (`XHttpApi` con OpenAPI, `XController` que lo implementa), DTO web (`*Request`/`*Response`), mappers web, validación de formato (`@Valid`), traducción de excepciones a HTTP (`handler`). | `usecase`, sus DTO y mappers, `shared` | `service`, `persistence`, `repository`, Spring Security |
-| **`usecase`** | **Autorización** (¿puede este `Requester` hacer esto?) y orquestación. Cada método público recibe `Requester` como primer parámetro (salvo `register`, `login` y `refresh` de auth). | `domain.service`, `shared` | `controller`, `persistence`, `repository`, otros `UseCase` |
+| **`usecase`** | **Autorización** (¿puede este `Requester` hacer esto?) y orquestación. **Un caso de uso por clase**, con un único método público `execute(...)` que recibe `Requester` como primer parámetro (salvo los públicos de auth: `RegisterUseCase`, `LoginUseCase` y `RefreshTokenUseCase`). | `domain.service`, `shared` | `controller`, `persistence`, `repository`, otros `UseCase` |
 | **`application`** | Implementa la API pública del módulo (`XModuleImpl`) y los adaptadores SPI (`loans`). | `domain` (servicio), DTO públicos | `controller`, `usecase`, `persistence` |
 | **`domain`** | **Reglas de negocio.** Modelo inmutable con invariantes (`Book`, `Isbn`, `Email`, `Loan`…), servicio (`XService` interfaz + `XServiceImpl`), puerto `XRepository` (interfaz), DTO internos (`*Dto`), mapper del dominio y excepciones propias. | `shared` y, en `loans`/`auth`, la API pública de otros módulos | `persistence`, `controller`, `usecase`, `application`; tampoco `jakarta.persistence`, `jakarta.validation`, Spring Web/Data/Security, servlet ni jjwt. Solo conserva `@Service` y `@Transactional`. |
 | **`persistence`** | Implementa `XRepository` (`XRepositoryImpl`), entidad JPA (`XEntity`), repositorio Spring Data (`XSpringDataRepository`) y mapper modelo⇄entidad (`XPersistenceMapper`). | `domain` (modelo y puerto) | `controller`, `usecase`, `application` |
@@ -204,7 +204,7 @@ La lógica de negocio vive en el **servicio de dominio**; HTTP y otros módulos 
 - `SecurityConfig` solo decide qué rutas son públicas y exige autenticación en el resto.
 
 ### Convenciones de nombres
-`XHttpApi`/`XController` (HTTP) · `XRequest`/`XResponse` (DTO web) · `XDto` (DTO de dominio o públicos del módulo) · `XUseCase` · `XService`/`XServiceImpl` · `XRepository` (puerto) · `XRepositoryImpl` · `XEntity` · `XSpringDataRepository` · `XPersistenceMapper` · `XMapper`/`XWebMapper` (MapStruct) · `XModule`/`XModuleImpl` · `XInUseChecker` (SPI).
+`XHttpApi`/`XController` (HTTP) · `XRequest`/`XResponse` (DTO web) · `XDto` (DTO de dominio o públicos del módulo) · `VerbNounUseCase` (p. ej. `CreateBookUseCase`, con un solo método `execute`) · `XService`/`XServiceImpl` · `XRepository` (puerto) · `XRepositoryImpl` · `XEntity` · `XSpringDataRepository` · `XPersistenceMapper` · `XMapper`/`XWebMapper` (MapStruct) · `XModule`/`XModuleImpl` · `XInUseChecker` (SPI).
 
 ---
 
@@ -234,7 +234,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `spi/BookInUseChecker` | Veto síncrono: otros módulos indican si un libro les impide ser retirado. |
 | `domain/model` | `Book` (inmutable, con invariantes), `Isbn` (valida y normaliza el ISBN), `Genre`. |
 | `domain/service` | `BookServiceImpl`: consulta, alta y edición (ISBN único), `reserve`/`release` y borrado (consulta a todos los `BookInUseChecker`). |
-| `usecase/BookUseCase` | Lectura para cualquier autenticado; crear/editar/borrar solo `ADMIN`. |
+| `usecase/` | `GetAllBooksUseCase` y `GetBookUseCase` (cualquier autenticado); `CreateBookUseCase`, `UpdateBookUseCase` y `DeleteBookUseCase` (solo `ADMIN`). |
 | `controller` | `BookHttpApi` + `BookController` (`/api/libros`), `BookRequest`/`BookResponse`, `BookExceptionHandler`. |
 | `persistence` | `BookEntity`, `BookSpringDataRepository` (bloqueo pesimista `PESSIMISTIC_WRITE` para reservar), `BookRepositoryImpl`. |
 
@@ -248,7 +248,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `spi/UserInUseChecker` | Veto síncrono para el borrado. |
 | `domain/model` | `User` (inmutable; `rename`, `changeEmail`, `changePassword`, `revokeSessions`), `Email` (valida y normaliza a minúsculas), `Role`. `tokenVersion` se incrementa al cambiar la contraseña o revocar sesiones. |
 | `domain/service` | `UserServiceImpl`: edición con comprobación de email duplicado, revocación de sesiones y borrado (bloqueado para uno mismo o si algún `UserInUseChecker` lo veta). |
-| `usecase/UserUseCase` | Listar y borrar solo `ADMIN`; `me` para autenticados; consulta, edición y revocación para `ADMIN` o dueño. |
+| `usecase/` | `GetAllUsersUseCase` y `DeleteUserUseCase` (solo `ADMIN`); `GetCurrentUserUseCase` (autenticado); `GetUserUseCase`, `UpdateUserUseCase` y `RevokeUserSessionsUseCase` (`ADMIN` o dueño). |
 | `controller` | `UserHttpApi` + `UserController` (`/api/usuarios`). `UserUpdateRequest` no tiene campo `rol` (defensa contra *mass assignment*). |
 | `persistence` | `UserEntity`, repositorio Spring Data y `UserRepositoryImpl`. |
 
@@ -261,7 +261,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `domain/service/LoanServiceImpl` | **Núcleo de negocio.** `create` y `returnLoan` son `@Transactional`: llaman a `CatalogModule.reserve/release` (que bloquea la fila del libro) y guardan el préstamo; si algo falla, todo se revierte. Traduce `ReservationResult` a excepciones de `loans`. Compone los DTO consultando `catalog` y `users` **en lote**. |
 | `domain/service/LoanQueryService` | Consultas `existsByBookId` / `existsByUserId`. Separado de `LoanService` para que los checkers no cierren ciclos de beans. |
 | `application/BookWithLoansChecker`, `UserWithLoansChecker` | Implementan los SPI de `catalog` y `users`: conservan el historial impidiendo borrar libros y usuarios con préstamos. |
-| `usecase/LoanUseCase` | Listar todos: `ADMIN`. Propios y crear: autenticado. Ver/devolver uno: `ADMIN` o dueño. |
+| `usecase/` | `GetAllLoansUseCase` (`ADMIN`); `GetOwnLoansUseCase` y `CreateLoanUseCase` (autenticado); `GetLoanUseCase` y `ReturnLoanUseCase` (`ADMIN` o dueño). |
 | `controller` | `LoanHttpApi` + `LoanController` (`/api/prestamos`), `LoanResponse`, `LoanBookResponse`, `LoanExceptionHandler`. |
 | `persistence` | `LoanEntity` (con `@Version` para bloqueo optimista; solo ids), repositorio Spring Data y `LoanRepositoryImpl`. |
 
@@ -273,7 +273,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `domain/service/AuthServiceImpl` | `register` (delegando en `UsersModule`), `login` (comprueba el hash con `PasswordHasher`, igual de costoso exista o no el usuario), `refresh` (rota el refresh token) y `logout` (revoca). Emite el par acceso + refresh. |
 | `domain/model/RefreshToken` | Hash del token, `userId`, `tokenVersion`, caducidad y revocación. |
 | `domain/repository/RefreshTokenRepository` | Puerto; implementado en `persistence` (`RefreshTokenEntity`, tabla `refresh_tokens`). |
-| `usecase/AuthUseCase` | Orquestación. `register`, `login` y `refresh` son públicos; `logout` recibe `Requester`. |
+| `usecase/` | `RegisterUseCase`, `LoginUseCase` y `RefreshTokenUseCase` (públicos, sin `Requester`); `LogoutUseCase` (recibe `Requester`). |
 | `controller` | `AuthHttpApi` + `AuthController` (`/api/auth`), DTO web (`LoginRequest`, `LoginResponse`, `RefreshRequest`, `LogoutRequest`…) y `AuthExceptionHandler`. |
 
 ### 4.6 `config/` — composición técnica y seguridad
@@ -403,7 +403,7 @@ Ubicación: `src/main/resources/static`. Spring Boot lo sirve directamente, sin 
 
 ## 9. Estrategia de tests y reglas de arquitectura
 
-`./mvnw clean test` ejecuta 531 tests. Los de repositorio contra **MariaDB real** (Testcontainers) se omiten si no hay Docker (28 tests); el resto usa **H2 en modo MariaDB** con Flyway y el perfil `test` (`src/test/resources/application-test.yml`).
+`./mvnw clean test` ejecuta 532 tests. Los de repositorio contra **MariaDB real** (Testcontainers) se omiten si no hay Docker (28 tests); el resto usa **H2 en modo MariaDB** con Flyway y el perfil `test` (`src/test/resources/application-test.yml`).
 
 > Usa `clean`: si quedan en `target/` clases de compilaciones anteriores (por ejemplo de una estructura de paquetes antigua), la suite puede fallar con errores que no existen en el código actual.
 
@@ -413,7 +413,7 @@ Los tests viven en el mismo paquete que la clase que prueban, capa por capa:
 |---|---|
 | Modelo y *value objects* (`BookTest`, `IsbnTest`, `EmailTest`, `UserTest`, `LoanTest`, `RefreshTokenTest`) | Invariantes del dominio |
 | Servicios (`*ServiceImplTest`, `LoanServiceTest`, `LoanQueryServiceTest`) | Reglas de negocio con repositorios simulados |
-| Casos de uso (`*UseCaseTest`) | Autorización por rol / dueño |
+| Casos de uso (un `*UseCaseTest` por caso de uso) | Autorización por rol / dueño |
 | Controladores y *handlers* (`*ControllerTest`, `*ExceptionHandlerTest`, `*WebMapperTest`) | Contrato HTTP, códigos y errores |
 | Persistencia (`*RepositoryImplTest`, `*RepositoryImplMariaDbTest`, `*PersistenceMapperTest`) | Mapeo y consultas (H2 y MariaDB) |
 | `*ModuleImplTest`, `*WithLoansCheckerTest` | API pública de cada módulo y los vetos SPI |
@@ -428,15 +428,15 @@ Los tests viven en el mismo paquete que la clase que prueban, capa por capa:
 
 **Spring Modulith — `ApplicationModulesTest`.** Comprueba los límites *entre módulos*: ciclos, acceso a `internal` y dependencias fuera de `allowedDependencies`.
 
-**ArchUnit — `ArchitectureTest` (40 reglas).** Comprueba lo que Modulith no cubre: la estructura *dentro* de cada módulo.
+**ArchUnit — `ArchitectureTest` (41 reglas).** Comprueba lo que Modulith no cubre: la estructura *dentro* de cada módulo.
 
 | Grupo | Reglas |
 |---|---|
 | **Módulos y encapsulación** | Sin ciclos entre módulos; `internal` solo lo usa su propio módulo; `dto`, `exception` y `shared` no dependen de `internal`; nadie depende de `config`; cada módulo solo contiene los subpaquetes conocidos. |
-| **Capas** | `controller` no usa `service`, `persistence` ni `repository`; `usecase` no usa `controller`, `persistence` ni `repository`, ni otros `UseCase`; `XModule`/`XModuleImpl` no usan `usecase` ni `controller`; `application` no usa web ni persistencia; `domain` no depende de otras capas; `persistence` no depende de web ni de casos de uso. |
+| **Capas** | `controller` no usa `service`, `persistence` ni `repository`; `usecase` no usa `controller`, `persistence` ni `repository`, ni otros `UseCase`; cada `UseCase` tiene un único método público, `execute`; `XModule`/`XModuleImpl` no usan `usecase` ni `controller`; `application` no usa web ni persistencia; `domain` no depende de otras capas; `persistence` no depende de web ni de casos de uso. |
 | **Independencia de frameworks** | `domain` sin web, HTTP, validación, JPA, Spring Data, Spring Security, servlet ni jjwt; `shared` sin Spring, Jakarta ni Lombok; la API servlet solo en `controller` y `config`. |
 | **Ubicación por sufijo** | Servicios en `domain.service`; repositorios (interfaz) en `domain.repository`; `*SpringDataRepository` en `persistence.dao.impl.jpa`; `*Dto` en `dto`; `*Request`/`*Response` en `controller.dto`; `*Entity` en `dao.entity`; `*PersistenceMapper` en `repository.mapper`; `*RepositoryImpl` en `persistence`; `*UseCase` en `usecase`; `@RestController` en `controller`; `*ModuleImpl` en `application`; `@RestControllerAdvice` en `controller.handler`; mappers con MapStruct. |
-| **Autorización** | Todo método público de un `UseCase` recibe `Requester` primero (salvo `register`, `login` y `refresh`); `@PreAuthorize`, `@Secured` y `SecurityContextHolder` solo en `config`; los controladores no importan Spring Security; los DTO públicos no exponen modelos de dominio. |
+| **Autorización** | Todo método público de un `UseCase` recibe `Requester` primero (salvo `RegisterUseCase`, `LoginUseCase` y `RefreshTokenUseCase`); `@PreAuthorize`, `@Secured` y `SecurityContextHolder` solo en `config`; los controladores no importan Spring Security; los DTO públicos no exponen modelos de dominio. |
 | **Otras** | Sin eventos de aplicación (la comunicación entre módulos es por API pública y SPI); sin `@Autowired`. |
 
 ---

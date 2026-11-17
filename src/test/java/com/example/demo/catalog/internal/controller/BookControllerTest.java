@@ -8,7 +8,11 @@ import com.example.demo.catalog.internal.domain.exception.BookWithLoansException
 import com.example.demo.catalog.internal.domain.exception.DuplicateIsbnException;
 import com.example.demo.catalog.internal.domain.exception.InvalidBookException;
 import com.example.demo.catalog.internal.domain.model.Genre;
-import com.example.demo.catalog.internal.usecase.BookUseCase;
+import com.example.demo.catalog.internal.usecase.CreateBookUseCase;
+import com.example.demo.catalog.internal.usecase.DeleteBookUseCase;
+import com.example.demo.catalog.internal.usecase.GetAllBooksUseCase;
+import com.example.demo.catalog.internal.usecase.GetBookUseCase;
+import com.example.demo.catalog.internal.usecase.UpdateBookUseCase;
 import com.example.demo.config.SecurityConfig;
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
@@ -45,7 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Prueba HTTP del controller con la {@code SecurityConfig} real: 401 sin identidad, 403 cuando el caso de
  * uso (simulado) deniega, contrato de éxito y traducción de errores. La política de acceso se prueba en
- * {@code BookUseCaseTest}.
+ * los tests de los casos de uso.
  */
 @WebMvcTest(BookController.class)
 @Import({SecurityConfig.class, BookWebMapperImpl.class})
@@ -62,7 +66,19 @@ class BookControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private BookUseCase useCase;
+    private GetAllBooksUseCase getAllBooksUseCase;
+
+    @MockitoBean
+    private GetBookUseCase getBookUseCase;
+
+    @MockitoBean
+    private CreateBookUseCase createBookUseCase;
+
+    @MockitoBean
+    private UpdateBookUseCase updateBookUseCase;
+
+    @MockitoBean
+    private DeleteBookUseCase deleteBookUseCase;
     // Colaborador del filtro JWT de la SecurityConfig real (la identidad se publica con TestAuthentication)
     @MockitoBean
     private TokenProvider tokenProvider;
@@ -87,14 +103,14 @@ class BookControllerTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/api/libros/5")).andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(getAllBooksUseCase, getBookUseCase, createBookUseCase, updateBookUseCase, deleteBookUseCase);
     }
 
     @Test
     void forbiddenFromUseCaseIs403() throws Exception {
-        when(useCase.create(eq(BOB), any(SaveBookDto.class))).thenThrow(new ForbiddenException());
-        when(useCase.update(eq(BOB), eq(5L), any(SaveBookDto.class))).thenThrow(new ForbiddenException());
-        doThrow(new ForbiddenException()).when(useCase).delete(BOB, 5L);
+        when(createBookUseCase.execute(eq(BOB), any(SaveBookDto.class))).thenThrow(new ForbiddenException());
+        when(updateBookUseCase.execute(eq(BOB), eq(5L), any(SaveBookDto.class))).thenThrow(new ForbiddenException());
+        doThrow(new ForbiddenException()).when(deleteBookUseCase).execute(BOB, 5L);
 
         mockMvc.perform(post("/api/libros").with(bob()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isForbidden());
@@ -107,7 +123,7 @@ class BookControllerTest {
 
     @Test
     void getAll_returnsJsonArrayWithSpanishFieldNames() throws Exception {
-        when(useCase.getAll(BOB)).thenReturn(List.of(DTO));
+        when(getAllBooksUseCase.execute(BOB)).thenReturn(List.of(DTO));
 
         mockMvc.perform(get("/api/libros").with(bob()))
                 .andExpect(status().isOk())
@@ -120,7 +136,7 @@ class BookControllerTest {
 
     @Test
     void getById_existing_200() throws Exception {
-        when(useCase.getById(BOB, 5L)).thenReturn(DTO);
+        when(getBookUseCase.execute(BOB, 5L)).thenReturn(DTO);
 
         mockMvc.perform(get("/api/libros/5").with(bob()))
                 .andExpect(status().isOk())
@@ -129,7 +145,7 @@ class BookControllerTest {
 
     @Test
     void getById_missing_404ProblemDetail() throws Exception {
-        when(useCase.getById(BOB, 9999L)).thenThrow(new BookNotFoundException());
+        when(getBookUseCase.execute(BOB, 9999L)).thenThrow(new BookNotFoundException());
 
         mockMvc.perform(get("/api/libros/9999").with(bob()))
                 .andExpect(status().isNotFound())
@@ -140,14 +156,14 @@ class BookControllerTest {
 
     @Test
     void create_valid_returns201WithLocationAndBook() throws Exception {
-        when(useCase.create(eq(ADMIN), any(SaveBookDto.class))).thenReturn(DTO);
+        when(createBookUseCase.execute(eq(ADMIN), any(SaveBookDto.class))).thenReturn(DTO);
 
         mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/libros/5"))
                 .andExpect(jsonPath("$.disponible").value(true));
 
-        verify(useCase).create(ADMIN, new SaveBookDto("Dune", "Frank Herbert", "9780441013593", Genre.CIENCIA_FICCION));
+        verify(createBookUseCase).execute(ADMIN, new SaveBookDto("Dune", "Frank Herbert", "9780441013593", Genre.CIENCIA_FICCION));
     }
 
     @Test
@@ -171,7 +187,7 @@ class BookControllerTest {
 
     @Test
     void create_duplicateIsbn_409ProblemDetail() throws Exception {
-        when(useCase.create(eq(ADMIN), any(SaveBookDto.class))).thenThrow(new DuplicateIsbnException());
+        when(createBookUseCase.execute(eq(ADMIN), any(SaveBookDto.class))).thenThrow(new DuplicateIsbnException());
 
         mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isConflict())
@@ -181,7 +197,7 @@ class BookControllerTest {
 
     @Test
     void create_domainInvariantViolation_422() throws Exception {
-        when(useCase.create(eq(ADMIN), any(SaveBookDto.class)))
+        when(createBookUseCase.execute(eq(ADMIN), any(SaveBookDto.class)))
                 .thenThrow(new InvalidBookException("El género es obligatorio"));
 
         mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
@@ -191,7 +207,7 @@ class BookControllerTest {
 
     @Test
     void update_missing_404() throws Exception {
-        when(useCase.update(eq(ADMIN), eq(9999L), any(SaveBookDto.class))).thenThrow(new BookNotFoundException());
+        when(updateBookUseCase.execute(eq(ADMIN), eq(9999L), any(SaveBookDto.class))).thenThrow(new BookNotFoundException());
 
         mockMvc.perform(put("/api/libros/9999").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isNotFound());
@@ -199,7 +215,7 @@ class BookControllerTest {
 
     @Test
     void update_isbnOfAnotherBook_409() throws Exception {
-        when(useCase.update(eq(ADMIN), eq(5L), any(SaveBookDto.class))).thenThrow(new DuplicateIsbnException());
+        when(updateBookUseCase.execute(eq(ADMIN), eq(5L), any(SaveBookDto.class))).thenThrow(new DuplicateIsbnException());
 
         mockMvc.perform(put("/api/libros/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isConflict());
@@ -207,7 +223,7 @@ class BookControllerTest {
 
     @Test
     void update_valid_200() throws Exception {
-        when(useCase.update(eq(ADMIN), eq(5L), any(SaveBookDto.class))).thenReturn(DTO);
+        when(updateBookUseCase.execute(eq(ADMIN), eq(5L), any(SaveBookDto.class))).thenReturn(DTO);
 
         mockMvc.perform(put("/api/libros/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isOk())
@@ -218,19 +234,19 @@ class BookControllerTest {
     void delete_existing_204() throws Exception {
         mockMvc.perform(delete("/api/libros/5").with(admin())).andExpect(status().isNoContent());
 
-        verify(useCase).delete(ADMIN, 5L);
+        verify(deleteBookUseCase).execute(ADMIN, 5L);
     }
 
     @Test
     void delete_missing_404() throws Exception {
-        doThrow(new BookNotFoundException()).when(useCase).delete(ADMIN, 9999L);
+        doThrow(new BookNotFoundException()).when(deleteBookUseCase).execute(ADMIN, 9999L);
 
         mockMvc.perform(delete("/api/libros/9999").with(admin())).andExpect(status().isNotFound());
     }
 
     @Test
     void delete_withLoans_409() throws Exception {
-        doThrow(new BookWithLoansException()).when(useCase).delete(ADMIN, 5L);
+        doThrow(new BookWithLoansException()).when(deleteBookUseCase).execute(ADMIN, 5L);
 
         mockMvc.perform(delete("/api/libros/5").with(admin()))
                 .andExpect(status().isConflict())

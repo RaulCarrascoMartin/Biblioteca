@@ -8,7 +8,10 @@ import com.example.demo.auth.internal.controller.dto.RefreshRequest;
 import com.example.demo.auth.internal.controller.dto.RegisterRequest;
 import com.example.demo.auth.internal.controller.dto.RegisterResponse;
 import com.example.demo.auth.internal.controller.mapper.AuthWebMapper;
-import com.example.demo.auth.internal.usecase.AuthUseCase;
+import com.example.demo.auth.internal.usecase.LoginUseCase;
+import com.example.demo.auth.internal.usecase.LogoutUseCase;
+import com.example.demo.auth.internal.usecase.RefreshTokenUseCase;
+import com.example.demo.auth.internal.usecase.RegisterUseCase;
 import com.example.demo.shared.Requester;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,17 +20,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AuthController implements AuthHttpApi {
 
-    private final AuthUseCase authUseCase;
+    private final RegisterUseCase registerUseCase;
+    private final LoginUseCase loginUseCase;
+    private final RefreshTokenUseCase refreshTokenUseCase;
+    private final LogoutUseCase logoutUseCase;
     private final AuthWebMapper mapper;
 
-    public AuthController(AuthUseCase authUseCase, AuthWebMapper mapper) {
-        this.authUseCase = authUseCase;
+    public AuthController(RegisterUseCase registerUseCase,
+                          LoginUseCase loginUseCase,
+                          RefreshTokenUseCase refreshTokenUseCase,
+                          LogoutUseCase logoutUseCase,
+                          AuthWebMapper mapper) {
+        this.registerUseCase = registerUseCase;
+        this.loginUseCase = loginUseCase;
+        this.refreshTokenUseCase = refreshTokenUseCase;
+        this.logoutUseCase = logoutUseCase;
         this.mapper = mapper;
     }
 
     @Override
     public ResponseEntity<RegisterResponse> register(RegisterRequest request) {
-        return authUseCase.register(mapper.toDto(request))
+        return registerUseCase.execute(mapper.toDto(request))
                 .map(mapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.ok().build());
@@ -35,17 +48,17 @@ public class AuthController implements AuthHttpApi {
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        return mapper.toResponse(authUseCase.login(request.email(), request.password()));
+        return mapper.toResponse(loginUseCase.execute(request.email(), request.password()));
     }
 
     @Override
     public LoginResponse refresh(RefreshRequest request) {
-        return mapper.toResponse(authUseCase.refresh(request.refreshToken()));
+        return mapper.toResponse(refreshTokenUseCase.execute(request.refreshToken()));
     }
 
     @Override
     public LogoutResponse logout(Requester requester, LogoutRequest request) {
-        authUseCase.logout(requester, request.refreshToken());
+        logoutUseCase.execute(requester, request.refreshToken());
         return new LogoutResponse("Sesión cerrada");
     }
 }

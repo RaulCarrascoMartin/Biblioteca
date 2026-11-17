@@ -4,7 +4,10 @@ import com.example.demo.auth.internal.controller.mapper.AuthWebMapperImpl;
 import com.example.demo.auth.internal.domain.dto.RegisterUserDto;
 import com.example.demo.auth.internal.domain.dto.RegisteredUserDto;
 import com.example.demo.auth.internal.domain.dto.TokenPairDto;
-import com.example.demo.auth.internal.usecase.AuthUseCase;
+import com.example.demo.auth.internal.usecase.LoginUseCase;
+import com.example.demo.auth.internal.usecase.LogoutUseCase;
+import com.example.demo.auth.internal.usecase.RefreshTokenUseCase;
+import com.example.demo.auth.internal.usecase.RegisterUseCase;
 import com.example.demo.config.RateLimitFilter;
 import com.example.demo.config.SecurityConfig;
 import com.example.demo.shared.AuthenticatedPrincipal;
@@ -53,7 +56,16 @@ class AuthControllerTest {
     private RateLimitFilter rateLimitFilter;
 
     @MockitoBean
-    private AuthUseCase useCase;
+    private RegisterUseCase registerUseCase;
+
+    @MockitoBean
+    private LoginUseCase loginUseCase;
+
+    @MockitoBean
+    private RefreshTokenUseCase refreshTokenUseCase;
+
+    @MockitoBean
+    private LogoutUseCase logoutUseCase;
     // Colaborador del filtro JWT de la SecurityConfig real
     @MockitoBean
     private TokenProvider tokenProvider;
@@ -71,9 +83,9 @@ class AuthControllerTest {
 
     @Test
     void registerLoginAndRefreshArePublic() throws Exception {
-        when(useCase.register(any())).thenReturn(Optional.empty());
-        when(useCase.login("lex@test.es", "Pass1234")).thenReturn(new TokenPairDto("a", "r"));
-        when(useCase.refresh("r-token")).thenReturn(new TokenPairDto("a2", "r2"));
+        when(registerUseCase.execute(any())).thenReturn(Optional.empty());
+        when(loginUseCase.execute("lex@test.es", "Pass1234")).thenReturn(new TokenPairDto("a", "r"));
+        when(refreshTokenUseCase.execute("r-token")).thenReturn(new TokenPairDto("a2", "r2"));
 
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("Ana", "ana@test.es", "Clave1234")))
@@ -90,7 +102,7 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("No autenticado"));
 
-        verifyNoInteractions(useCase);
+        verifyNoInteractions(registerUseCase, loginUseCase, refreshTokenUseCase, logoutUseCase);
     }
 
     @Test
@@ -111,12 +123,12 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Sesión cerrada"));
 
-        verify(useCase).logout(USER, "r-token");
+        verify(logoutUseCase).execute(USER, "r-token");
     }
 
     @Test
     void forbiddenFromTheUseCaseIs403() throws Exception {
-        org.mockito.Mockito.doThrow(new ForbiddenException()).when(useCase).logout(USER, "r-token");
+        org.mockito.Mockito.doThrow(new ForbiddenException()).when(logoutUseCase).execute(USER, "r-token");
 
         mockMvc.perform(post("/api/auth/logout").with(asUser(1L, "USER"))
                         .contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
@@ -127,7 +139,7 @@ class AuthControllerTest {
 
     @Test
     void registerReturnsUserWithHistoricalFieldNames() throws Exception {
-        when(useCase.register(new RegisterUserDto("Ana", "ana@test.es", "Clave1234")))
+        when(registerUseCase.execute(new RegisterUserDto("Ana", "ana@test.es", "Clave1234")))
                 .thenReturn(Optional.of(new RegisteredUserDto(1L, "Ana", "ana@test.es", "USER")));
 
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
@@ -140,7 +152,7 @@ class AuthControllerTest {
 
     @Test
     void registerWithDuplicateEmailReturns200WithEmptyBody() throws Exception {
-        when(useCase.register(any())).thenReturn(Optional.empty());
+        when(registerUseCase.execute(any())).thenReturn(Optional.empty());
 
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("Ana", "dup@test.es", "Clave1234")))
@@ -157,7 +169,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errors", hasItem(containsString("password"))))
                 .andExpect(jsonPath("$.error").value(containsString("8")));
 
-        verify(useCase, never()).register(any());
+        verify(registerUseCase, never()).execute(any());
     }
 
     @Test
@@ -171,7 +183,7 @@ class AuthControllerTest {
 
     @Test
     void loginReturnsTheTokenPairAndNoCookie() throws Exception {
-        when(useCase.login("lex@test.es", "Pass1234")).thenReturn(new TokenPairDto("jwt", "opaque"));
+        when(loginUseCase.execute("lex@test.es", "Pass1234")).thenReturn(new TokenPairDto("jwt", "opaque"));
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(LOGIN_BODY))
                 .andExpect(status().isOk())
@@ -183,7 +195,7 @@ class AuthControllerTest {
 
     @Test
     void loginWithInvalidCredentialsReturns401() throws Exception {
-        when(useCase.login(any(), any())).thenThrow(new InvalidCredentialsException());
+        when(loginUseCase.execute(any(), any())).thenThrow(new InvalidCredentialsException());
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"x@test.es\",\"password\":\"mala\"}"))
@@ -196,14 +208,14 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
 
-        verify(useCase, never()).login(any(), any());
+        verify(loginUseCase, never()).execute(any(), any());
     }
 
     // ---- refresh
 
     @Test
     void refreshReturnsTheNewPair() throws Exception {
-        when(useCase.refresh("r-token")).thenReturn(new TokenPairDto("jwt2", "opaque2"));
+        when(refreshTokenUseCase.execute("r-token")).thenReturn(new TokenPairDto("jwt2", "opaque2"));
 
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
                 .andExpect(status().isOk())
@@ -213,7 +225,7 @@ class AuthControllerTest {
 
     @Test
     void refreshWithInvalidTokenReturns401() throws Exception {
-        when(useCase.refresh(any())).thenThrow(new InvalidCredentialsException());
+        when(refreshTokenUseCase.execute(any())).thenThrow(new InvalidCredentialsException());
 
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(REFRESH_BODY))
                 .andExpect(status().isUnauthorized());
@@ -224,7 +236,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
 
-        verify(useCase, never()).refresh(any());
+        verify(refreshTokenUseCase, never()).execute(any());
     }
 
     // ---- logout

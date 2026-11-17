@@ -38,6 +38,9 @@ class ArchitectureTest {
     private static final String PERSISTENCE = BASE + ".*.internal.persistence..";
     private static final String PERSISTENCE_DAO_JPA = BASE + ".*.internal.persistence.dao.impl.jpa..";
     private static final String APPLICATION = BASE + ".*.internal.application..";
+    /** Casos de uso públicos (sin sesión): no reciben Requester. */
+    private static final java.util.Set<String> PUBLIC_USE_CASES =
+            java.util.Set.of("RegisterUseCase", "LoginUseCase", "RefreshTokenUseCase");
     private static final String[] BUSINESS_MODULES = {"catalog", "users", "loans", "auth"};
 
     // ---- Módulos y encapsulación ---------------------------------------------------------------
@@ -262,6 +265,11 @@ class ArchitectureTest {
     // ---- Autorización, eventos, inyección --------------------------------------------------------
 
     @ArchTest
+    static final ArchRule each_usecase_exposes_a_single_execute_method =
+            classes().that().haveSimpleNameEndingWith("UseCase")
+                    .should(haveExactlyOnePublicMethodNamedExecute());
+
+    @ArchTest
     static final ArchRule every_public_usecase_method_takes_requester_first =
             classes().that().haveSimpleNameEndingWith("UseCase")
                     .should(haveRequesterAsFirstParameterInPublicMethods());
@@ -333,7 +341,25 @@ class ArchitectureTest {
         return dot < 0 ? rest : rest.substring(0, dot);
     }
 
-    /** Todo método público de un UseCase recibe Requester primero, salvo register, login y refresh de AuthUseCase. */
+    /** Un caso de uso por clase: un único método público, {@code execute}. */
+    private static ArchCondition<JavaClass> haveExactlyOnePublicMethodNamedExecute() {
+        return new ArchCondition<>("have exactly one public method named execute") {
+            @Override
+            public void check(JavaClass useCase, ConditionEvents events) {
+                var publicMethods = useCase.getMethods().stream()
+                        .filter(m -> m.getModifiers().contains(JavaModifier.PUBLIC)
+                                && !m.getModifiers().contains(JavaModifier.SYNTHETIC))
+                        .toList();
+                boolean ok = publicMethods.size() == 1 && publicMethods.get(0).getName().equals("execute");
+                if (!ok) {
+                    events.add(SimpleConditionEvent.violated(useCase, useCase.getName()
+                            + " debe tener un único método público llamado execute"));
+                }
+            }
+        };
+    }
+
+    /** Todo método público de un UseCase recibe Requester primero, salvo los casos de uso públicos (RegisterUseCase, LoginUseCase, RefreshTokenUseCase). */
     private static ArchCondition<JavaClass> haveRequesterAsFirstParameterInPublicMethods() {
         return new ArchCondition<>("have Requester as the first parameter in every public method") {
             @Override
@@ -342,9 +368,7 @@ class ArchitectureTest {
                     if (!method.getModifiers().contains(JavaModifier.PUBLIC) || method.getModifiers().contains(JavaModifier.SYNTHETIC)) {
                         continue;
                     }
-                    boolean publicFlow = useCase.getSimpleName().equals("AuthUseCase")
-                            && (method.getName().equals("register") || method.getName().equals("login")
-                            || method.getName().equals("refresh"));
+                    boolean publicFlow = PUBLIC_USE_CASES.contains(useCase.getSimpleName());
                     if (publicFlow) {
                         continue;
                     }
