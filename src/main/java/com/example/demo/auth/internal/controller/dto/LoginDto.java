@@ -1,9 +1,9 @@
-package com.example.demo.auth.internal.web;
+package com.example.demo.auth.internal.controller.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public record LoginDTO(
+public record LoginDto(
         @NotBlank(message = "El email es obligatorio")
         @Size(max = 255, message = "El email es demasiado largo")
         String email,
