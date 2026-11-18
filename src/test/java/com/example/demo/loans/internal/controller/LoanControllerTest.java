@@ -2,7 +2,7 @@ package com.example.demo.loans.internal.controller;
 
 import com.example.demo.catalog.dto.BookSummary;
 import com.example.demo.catalog.dto.Genre;
-import com.example.demo.config.SecurityConfig;
+import com.example.demo.config.security.SecurityConfig;
 import com.example.demo.loans.internal.controller.mapper.LoanWebMapperImpl;
 import com.example.demo.loans.internal.domain.dto.LoanDto;
 import com.example.demo.loans.internal.domain.exception.InvalidLoanException;

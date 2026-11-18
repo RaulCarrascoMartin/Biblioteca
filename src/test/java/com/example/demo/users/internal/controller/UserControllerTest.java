@@ -1,6 +1,6 @@
 package com.example.demo.users.internal.controller;
 
-import com.example.demo.config.SecurityConfig;
+import com.example.demo.config.security.SecurityConfig;
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
 import com.example.demo.shared.TokenProvider;

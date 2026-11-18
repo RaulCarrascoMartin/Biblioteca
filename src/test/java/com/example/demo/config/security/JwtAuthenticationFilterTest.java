@@ -1,4 +1,4 @@
-package com.example.demo.config;
+package com.example.demo.config.security;
 
 import com.example.demo.shared.AuthenticatedPrincipal;
 import com.example.demo.shared.TokenProvider;

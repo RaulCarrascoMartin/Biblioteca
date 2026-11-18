@@ -1,6 +1,6 @@
 package com.example.demo;
 
-import com.example.demo.config.RateLimitFilter;
+import com.example.demo.config.security.RateLimitFilter;
 import com.example.demo.shared.TokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;

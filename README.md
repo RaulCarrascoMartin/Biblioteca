@@ -277,7 +277,19 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `controller` | `AuthHttpApi` + `AuthController` (`/api/auth`), DTO web (`LoginRequest`, `LoginResponse`, `RefreshRequest`, `LogoutRequest`…) y `AuthExceptionHandler`. |
 
 ### 4.6 `config/` — composición técnica y seguridad
-Pieza **abierta**. Nadie depende de ella; ella puede conocer a los demás. Es el único sitio con Spring Security, jjwt y la API servlet.
+Pieza **abierta**. Nadie depende de ella; ella puede conocer a los demás. Es el único sitio con Spring Security, jjwt y la API servlet. Se organiza en subpaquetes por responsabilidad:
+
+```
+ config/
+ ├── ClockConfig
+ ├── security/   SecurityConfig, JwtAuthenticationFilter, JwtTokenProvider, RateLimitFilter,
+ │               JsonAuthenticationEntryPoint, JsonAccessDeniedHandler,
+ │               BcryptPasswordHasher, PasswordEncoderConfig
+ ├── web/        WebConfig, RequesterArgumentResolver, GlobalExceptionHandler
+ └── startup/    AdminSeeder
+```
+
+**`config/security`**
 
 | Clase | Responsabilidad |
 |---|---|
@@ -285,10 +297,20 @@ Pieza **abierta**. Nadie depende de ella; ella puede conocer a los demás. Es el
 | `JwtAuthenticationFilter` | Lee `Authorization: Bearer`, valida el token con `TokenProvider` y puebla el `SecurityContext` con un `AuthenticatedPrincipal`. |
 | `JwtTokenProvider` | Implementa `TokenProvider` (jjwt): firma, emisor, audiencia y caducidad. Falla al arrancar si la clave es corta. |
 | `BcryptPasswordHasher`, `PasswordEncoderConfig` | Implementan `PasswordHasher` con BCrypt. |
-| `RequesterArgumentResolver`, `WebConfig` | Convierten el principal autenticado en el `Requester` que reciben los controladores. |
 | `RateLimitFilter` | Limita login (5/min) y registro (3/min) por IP. |
 | `JsonAuthenticationEntryPoint`, `JsonAccessDeniedHandler` | Respuestas 401/403 en JSON. |
+
+**`config/web`**
+
+| Clase | Responsabilidad |
+|---|---|
+| `RequesterArgumentResolver`, `WebConfig` | Convierten el principal autenticado en el `Requester` que reciben los controladores. |
 | `GlobalExceptionHandler` | `@RestControllerAdvice` de último recurso (`ProblemDetail`): validación, JSON mal formado, `ForbiddenException`, integridad de datos, y un 500 genérico que **oculta los detalles internos**. Los errores de negocio los traduce cada módulo con su `handler`. |
+
+**`config/startup` y raíz**
+
+| Clase | Responsabilidad |
+|---|---|
 | `AdminSeeder` | `CommandLineRunner` que llama a `UsersModule.ensureAdmin` con `ADMIN_EMAIL`/`ADMIN_PASSWORD` si existen. |
 | `ClockConfig` | Bean `Clock` inyectable (tests deterministas). |
 
@@ -417,7 +439,7 @@ Los tests viven en el mismo paquete que la clase que prueban, capa por capa:
 | Controladores y *handlers* (`*ControllerTest`, `*ExceptionHandlerTest`, `*WebMapperTest`) | Contrato HTTP, códigos y errores |
 | Persistencia (`*RepositoryImplTest`, `*RepositoryImplMariaDbTest`, `*PersistenceMapperTest`) | Mapeo y consultas (H2 y MariaDB) |
 | `*ModuleImplTest`, `*WithLoansCheckerTest` | API pública de cada módulo y los vetos SPI |
-| `config/*Test` | Filtro JWT, proveedor JWT, rate limit, hash, resolver de `Requester`, seeder |
+| `config/**/*Test` | Filtro JWT, proveedor JWT, rate limit, hash, resolver de `Requester`, seeder (en el mismo subpaquete que la clase probada) |
 | `SecurityIntegrationTest`, `EndpointAuthorizationIntegrationTest` | Rutas públicas/protegidas y autorización de extremo a extremo |
 | `ArchitectureTest`, `ApplicationModulesTest` | Arquitectura (abajo) |
 | `DemoApplicationTests` | Arranque del contexto |

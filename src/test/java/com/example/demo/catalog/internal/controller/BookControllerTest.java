@@ -13,7 +13,7 @@ import com.example.demo.catalog.internal.usecase.DeleteBookUseCase;
 import com.example.demo.catalog.internal.usecase.GetAllBooksUseCase;
 import com.example.demo.catalog.internal.usecase.GetBookUseCase;
 import com.example.demo.catalog.internal.usecase.UpdateBookUseCase;
-import com.example.demo.config.SecurityConfig;
+import com.example.demo.config.security.SecurityConfig;
 import com.example.demo.shared.ForbiddenException;
 import com.example.demo.shared.Requester;
 import com.example.demo.shared.TokenProvider;

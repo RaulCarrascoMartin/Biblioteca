@@ -1,4 +1,4 @@
-package com.example.demo.config;
+package com.example.demo.config.web;
 
 import com.example.demo.shared.Requester;
 import com.example.demo.shared.AuthenticatedPrincipal;

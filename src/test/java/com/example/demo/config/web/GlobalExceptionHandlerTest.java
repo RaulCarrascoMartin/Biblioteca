@@ -1,4 +1,4 @@
-package com.example.demo.config;
+package com.example.demo.config.web;
 
 import com.example.demo.shared.ForbiddenException;
 import jakarta.validation.constraints.NotBlank;

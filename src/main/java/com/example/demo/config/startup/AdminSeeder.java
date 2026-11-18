@@ -1,4 +1,4 @@
-package com.example.demo.config;
+package com.example.demo.config.startup;
 
 import com.example.demo.users.UsersModule;
 import org.springframework.beans.factory.annotation.Value;
