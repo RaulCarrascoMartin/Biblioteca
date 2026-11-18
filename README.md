@@ -396,6 +396,18 @@ Todas las rutas salvo `POST /api/auth/{register,login,refresh}` y los estáticos
 | `POST /api/users/{id}/revoke-sessions` | ADMIN o dueño | Invalida los refresh tokens del usuario |
 | `DELETE /api/users/{id}` | ADMIN | Borrado (409 si tiene préstamos; no permite borrarse a uno mismo) |
 
+**Convención del contrato:** rutas y campos JSON en inglés. Los nombres de campo de los errores de validación coinciden con los del JSON enviado.
+
+| Recurso | Campos JSON |
+|---|---|
+| Registro (`POST /api/auth/register`) | entrada: `name`, `email`, `password` · salida: `id`, `name`, `email`, `role` |
+| Login / refresh | entrada: `email`, `password` / `refreshToken` · salida: `accessToken`, `refreshToken` |
+| Usuario (`/api/users`) | salida: `id`, `name`, `email`, `role` · edición: `name`, `email`, `password` (opcional); `role` no se acepta |
+| Libro (`/api/books`) | `id`, `title`, `author`, `isbn`, `available`, `genre` (en la entrada no se envía `id` ni `available`) |
+| Préstamo (`/api/loans`) | `id`, `loanDate`, `returnDate` (nulo mientras está activo), `book` (con los campos de libro), `userId`, `userName`, `userEmail` |
+
+Las tablas y columnas de la base de datos (`usuarios.nombre`, `libros.titulo`...) conservan sus nombres en castellano para no migrar el esquema: no forman parte del contrato HTTP. Los valores de `genre` son constantes en castellano (`CLASICA`, `CIENCIA_FICCION`...).
+
 Los errores son `ProblemDetail` (RFC 9457) con una propiedad `error` que repite el mensaje (y `errors` con la lista en validaciones). Códigos: 400 validación, 401 no autenticado o credenciales/refresh inválidos, 403 sin permiso, 404 no existe, 409 conflicto, 422 invariante de dominio incumplida, 429 demasiadas peticiones, 500 genérico. El directorio `postman/` solo contiene variables globales del espacio de trabajo, no una colección de peticiones.
 
 ---
