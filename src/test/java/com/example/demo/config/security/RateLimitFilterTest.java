@@ -43,7 +43,7 @@ class RateLimitFilterTest {
     @Test
     void otherPathsAreNotLimited() throws Exception {
         for (int i = 0; i < 20; i++) {
-            assertEquals(200, call("/api/libros", "1.1.1.1").getStatus());
+            assertEquals(200, call("/api/books", "1.1.1.1").getStatus());
         }
     }
 

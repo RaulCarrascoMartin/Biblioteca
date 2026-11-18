@@ -5,7 +5,6 @@ import com.example.demo.users.internal.controller.dto.UserUpdateRequest;
 import com.example.demo.users.internal.domain.dto.UserDto;
 import com.example.demo.users.internal.domain.dto.UserUpdateDto;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.List;
 
@@ -13,11 +12,8 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface UserWebMapper {
 
-    @Mapping(source = "nombre", target = "name")
     UserUpdateDto toDto(UserUpdateRequest request);
 
-    @Mapping(source = "name", target = "nombre")
-    @Mapping(source = "role", target = "rol")
     UserResponse toResponse(UserDto dto);
 
     List<UserResponse> toResponses(List<UserDto> dtos);

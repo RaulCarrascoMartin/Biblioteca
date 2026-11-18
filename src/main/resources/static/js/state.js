@@ -47,4 +47,4 @@ const derivado = (origen, calcular) => {
 export const activos = derivado((s) => s.prestamos, (ps) => ps.filter((p) => p.returnDate === null));
 export const devueltos = derivado((s) => s.prestamos, (ps) => ps.filter((p) => p.returnDate !== null));
 export const disponibles = derivado((s) => s.libros, (ls) => ls.filter((l) => l.available));
-export const esAdmin = (s) => !!s.usuario && s.usuario.rol === "ADMIN";
+export const esAdmin = (s) => !!s.usuario && s.usuario.role === "ADMIN";

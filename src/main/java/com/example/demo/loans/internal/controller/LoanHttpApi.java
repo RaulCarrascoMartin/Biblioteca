@@ -19,12 +19,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
-/** Contrato HTTP de préstamos (ruta base {@code /api/prestamos}): única fuente de verdad de rutas y validación. */
+/** Contrato HTTP de préstamos (ruta base {@code /api/loans}): única fuente de verdad de rutas y validación. */
 @Tag(name = "Préstamos", description = "Préstamos de libros")
 @RequestMapping(LoanHttpApi.BASE_PATH)
 public interface LoanHttpApi {
 
-    String BASE_PATH = "/api/prestamos";
+    String BASE_PATH = "/api/loans";
 
     @Operation(summary = "Lista todos los préstamos", description = "Solo ADMIN.")
     @ApiResponses({
@@ -40,7 +40,7 @@ public interface LoanHttpApi {
             @ApiResponse(responseCode = "200", description = "Préstamos del solicitante"),
             @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content)
     })
-    @GetMapping("/mios")
+    @GetMapping("/mine")
     List<LoanResponse> getOwn(@Parameter(hidden = true) Requester requester);
 
     @Operation(summary = "Obtiene un préstamo", description = "ADMIN o dueño del préstamo.")
@@ -58,7 +58,7 @@ public interface LoanHttpApi {
                     + "Devuelve la cabecera Location del nuevo préstamo.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Préstamo creado"),
-            @ApiResponse(responseCode = "400", description = "libroId ausente o no positivo"),
+            @ApiResponse(responseCode = "400", description = "bookId ausente o no positivo"),
             @ApiResponse(responseCode = "401", description = "Sin identidad", content = @Content),
             @ApiResponse(responseCode = "403", description = "Sin permiso"),
             @ApiResponse(responseCode = "404", description = "El libro o el usuario no existen"),
@@ -67,7 +67,7 @@ public interface LoanHttpApi {
     })
     @PostMapping
     ResponseEntity<LoanResponse> create(@Parameter(hidden = true) Requester requester,
-                                        @RequestParam("libroId") @Positive Long bookId);
+                                        @RequestParam("bookId") @Positive Long bookId);
 
     @Operation(summary = "Devuelve un libro", description = "ADMIN o dueño del préstamo.")
     @ApiResponses({
@@ -78,6 +78,6 @@ public interface LoanHttpApi {
             @ApiResponse(responseCode = "409",
                     description = "Ya estaba devuelto, el libro ya estaba disponible o hubo una modificación concurrente")
     })
-    @PutMapping("/{id}/devolver")
+    @PutMapping("/{id}/return")
     LoanResponse returnLoan(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 }

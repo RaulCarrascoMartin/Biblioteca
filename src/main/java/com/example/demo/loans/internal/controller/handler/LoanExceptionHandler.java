@@ -45,7 +45,7 @@ public class LoanExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
-    /** Parámetros que incumplen su restricción (p. ej. {@code libroId} no positivo). */
+    /** Parámetros que incumplen su restricción (p. ej. {@code bookId} no positivo). */
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ProblemDetail handleValidation(HandlerMethodValidationException ex) {
         List<String> errors = ex.getParameterValidationResults().stream()

@@ -25,7 +25,7 @@ import java.util.List;
  * {@link Requester} lo inyecta la capa de seguridad y no forma parte del contrato.
  */
 @Tag(name = "Usuarios", description = "Gestión de cuentas de usuario")
-@RequestMapping("/api/usuarios")
+@RequestMapping("/api/users")
 public interface UserHttpApi {
 
     @Operation(summary = "Listar usuarios (solo ADMIN)")
@@ -76,7 +76,7 @@ public interface UserHttpApi {
             @ApiResponse(responseCode = "403", description = "Sin permiso"),
             @ApiResponse(responseCode = "404", description = "El usuario no existe")
     })
-    @PostMapping("/{id}/revocar-sesiones")
+    @PostMapping("/{id}/revoke-sessions")
     ResponseEntity<Void> revokeSessions(@Parameter(hidden = true) Requester requester, @PathVariable("id") Long id);
 
     @Operation(summary = "Eliminar un usuario (solo ADMIN)")

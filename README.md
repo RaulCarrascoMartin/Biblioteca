@@ -235,7 +235,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `domain/model` | `Book` (inmutable, con invariantes), `Isbn` (valida y normaliza el ISBN), `Genre`. |
 | `domain/service` | `BookServiceImpl`: consulta, alta y edición (ISBN único), `reserve`/`release` y borrado (consulta a todos los `BookInUseChecker`). |
 | `usecase/` | `GetAllBooksUseCase` y `GetBookUseCase` (cualquier autenticado); `CreateBookUseCase`, `UpdateBookUseCase` y `DeleteBookUseCase` (solo `ADMIN`). |
-| `controller` | `BookHttpApi` + `BookController` (`/api/libros`), `BookRequest`/`BookResponse`, `BookExceptionHandler`. |
+| `controller` | `BookHttpApi` + `BookController` (`/api/books`), `BookRequest`/`BookResponse`, `BookExceptionHandler`. |
 | `persistence` | `BookEntity`, `BookSpringDataRepository` (bloqueo pesimista `PESSIMISTIC_WRITE` para reservar), `BookRepositoryImpl`. |
 
 ### 4.3 `users/` — cuentas y roles
@@ -249,7 +249,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `domain/model` | `User` (inmutable; `rename`, `changeEmail`, `changePassword`, `revokeSessions`), `Email` (valida y normaliza a minúsculas), `Role`. `tokenVersion` se incrementa al cambiar la contraseña o revocar sesiones. |
 | `domain/service` | `UserServiceImpl`: edición con comprobación de email duplicado, revocación de sesiones y borrado (bloqueado para uno mismo o si algún `UserInUseChecker` lo veta). |
 | `usecase/` | `GetAllUsersUseCase` y `DeleteUserUseCase` (solo `ADMIN`); `GetCurrentUserUseCase` (autenticado); `GetUserUseCase`, `UpdateUserUseCase` y `RevokeUserSessionsUseCase` (`ADMIN` o dueño). |
-| `controller` | `UserHttpApi` + `UserController` (`/api/usuarios`). `UserUpdateRequest` no tiene campo `rol` (defensa contra *mass assignment*). |
+| `controller` | `UserHttpApi` + `UserController` (`/api/users`). `UserUpdateRequest` no tiene campo `role` (defensa contra *mass assignment*). |
 | `persistence` | `UserEntity`, repositorio Spring Data y `UserRepositoryImpl`. |
 
 ### 4.4 `loans/` — préstamos y devoluciones
@@ -262,7 +262,7 @@ Módulo **abierto** (cualquiera puede usarlo), **sin dependencias de módulos ni
 | `domain/service/LoanQueryService` | Consultas `existsByBookId` / `existsByUserId`. Separado de `LoanService` para que los checkers no cierren ciclos de beans. |
 | `application/BookWithLoansChecker`, `UserWithLoansChecker` | Implementan los SPI de `catalog` y `users`: conservan el historial impidiendo borrar libros y usuarios con préstamos. |
 | `usecase/` | `GetAllLoansUseCase` (`ADMIN`); `GetOwnLoansUseCase` y `CreateLoanUseCase` (autenticado); `GetLoanUseCase` y `ReturnLoanUseCase` (`ADMIN` o dueño). |
-| `controller` | `LoanHttpApi` + `LoanController` (`/api/prestamos`), `LoanResponse`, `LoanBookResponse`, `LoanExceptionHandler`. |
+| `controller` | `LoanHttpApi` + `LoanController` (`/api/loans`), `LoanResponse`, `LoanBookResponse`, `LoanExceptionHandler`. |
 | `persistence` | `LoanEntity` (con `@Version` para bloqueo optimista; solo ids), repositorio Spring Data y `LoanRepositoryImpl`. |
 
 ### 4.5 `auth/` — registro, login, refresh y logout
@@ -332,7 +332,7 @@ Pieza **abierta**. Nadie depende de ella; ella puede conocer a los demás. Es el
 - `POST /api/auth/logout` revoca el refresh indicado.
 
 ### Invalidar todas las sesiones de un usuario (`tokenVersion`)
-Cada usuario tiene una `tokenVersion`. Cada refresh guarda la versión con la que se emitió. Se incrementa al **cambiar la contraseña** y con `POST /api/usuarios/{id}/revocar-sesiones` (admin o el propio usuario): desde entonces ningún refresh anterior sirve. **Los tokens de acceso ya emitidos siguen siendo válidos hasta que caducan** (máximo 15 min); es el coste de no consultar la base de datos en cada petición.
+Cada usuario tiene una `tokenVersion`. Cada refresh guarda la versión con la que se emitió. Se incrementa al **cambiar la contraseña** y con `POST /api/users/{id}/revoke-sessions` (admin o el propio usuario): desde entonces ningún refresh anterior sirve. **Los tokens de acceso ya emitidos siguen siendo válidos hasta que caducan** (máximo 15 min); es el coste de no consultar la base de datos en cada petición.
 
 ### Prevención de enumeración de usuarios
 - Login con credenciales erróneas o usuario inexistente → siempre el mismo 401, y el coste del hash es el mismo (hay un hash ficticio para el caso «no existe»).
@@ -381,20 +381,20 @@ Todas las rutas salvo `POST /api/auth/{register,login,refresh}` y los estáticos
 | `POST /api/auth/login` | Público | Devuelve el par de tokens |
 | `POST /api/auth/refresh` | Público | Rota el refresh y devuelve un par nuevo |
 | `POST /api/auth/logout` | Autenticado | Revoca el refresh indicado |
-| `GET /api/libros` · `GET /api/libros/{id}` | Autenticado | Consulta del catálogo |
-| `POST /api/libros` | ADMIN | Alta de libro |
-| `PUT /api/libros/{id}` | ADMIN | Edición |
-| `DELETE /api/libros/{id}` | ADMIN | Retirada (409 si tiene préstamos) |
-| `GET /api/prestamos` | ADMIN | Todos los préstamos |
-| `GET /api/prestamos/mios` | Autenticado | Préstamos propios |
-| `GET /api/prestamos/{id}` | ADMIN o dueño | Un préstamo |
-| `POST /api/prestamos?libroId=` | Autenticado | Pedir un libro (409 si no está disponible) |
-| `PUT /api/prestamos/{id}/devolver` | ADMIN o dueño | Devolver (409 si ya estaba devuelto) |
-| `GET /api/usuarios` | ADMIN | Listado |
-| `GET /api/usuarios/me` | Autenticado | Perfil propio |
-| `GET/PUT /api/usuarios/{id}` | ADMIN o dueño | Consulta / edición |
-| `POST /api/usuarios/{id}/revocar-sesiones` | ADMIN o dueño | Invalida los refresh tokens del usuario |
-| `DELETE /api/usuarios/{id}` | ADMIN | Borrado (409 si tiene préstamos; no permite borrarse a uno mismo) |
+| `GET /api/books` · `GET /api/books/{id}` | Autenticado | Consulta del catálogo |
+| `POST /api/books` | ADMIN | Alta de libro |
+| `PUT /api/books/{id}` | ADMIN | Edición |
+| `DELETE /api/books/{id}` | ADMIN | Retirada (409 si tiene préstamos) |
+| `GET /api/loans` | ADMIN | Todos los préstamos |
+| `GET /api/loans/mine` | Autenticado | Préstamos propios |
+| `GET /api/loans/{id}` | ADMIN o dueño | Un préstamo |
+| `POST /api/loans?bookId=` | Autenticado | Pedir un libro (409 si no está disponible) |
+| `PUT /api/loans/{id}/return` | ADMIN o dueño | Devolver (409 si ya estaba devuelto) |
+| `GET /api/users` | ADMIN | Listado |
+| `GET /api/users/me` | Autenticado | Perfil propio |
+| `GET/PUT /api/users/{id}` | ADMIN o dueño | Consulta / edición |
+| `POST /api/users/{id}/revoke-sessions` | ADMIN o dueño | Invalida los refresh tokens del usuario |
+| `DELETE /api/users/{id}` | ADMIN | Borrado (409 si tiene préstamos; no permite borrarse a uno mismo) |
 
 Los errores son `ProblemDetail` (RFC 9457) con una propiedad `error` que repite el mensaje (y `errors` con la lista en validaciones). Códigos: 400 validación, 401 no autenticado o credenciales/refresh inválidos, 403 sin permiso, 404 no existe, 409 conflicto, 422 invariante de dominio incumplida, 429 demasiadas peticiones, 500 genérico. El directorio `postman/` solo contiene variables globales del espacio de trabajo, no una colección de peticiones.
 

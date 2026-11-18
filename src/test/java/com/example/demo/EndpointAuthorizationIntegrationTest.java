@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class EndpointAuthorizationIntegrationTest extends BaseIntegrationTest {
 
     private static final String BOOK_BODY = "{\"title\":\"T\",\"author\":\"A\",\"isbn\":\"9780000009999\"}";
-    private static final String USER_BODY = "{\"nombre\":\"Nuevo\",\"email\":\"nuevo@test.es\"}";
+    private static final String USER_BODY = "{\"name\":\"Nuevo\",\"email\":\"nuevo@test.es\"}";
 
     private long aliceId;
     private long bookId;
@@ -59,45 +59,45 @@ class EndpointAuthorizationIntegrationTest extends BaseIntegrationTest {
     /** Todos los endpoints protegidos (excepto los públicos de /api/auth). */
     static Stream<Arguments> protectedEndpoints() {
         return Stream.of(
-                arguments(HttpMethod.GET, "/api/libros", null),
-                arguments(HttpMethod.GET, "/api/libros/{book}", null),
-                arguments(HttpMethod.POST, "/api/libros", BOOK_BODY),
-                arguments(HttpMethod.PUT, "/api/libros/{book}", BOOK_BODY),
-                arguments(HttpMethod.DELETE, "/api/libros/{book}", null),
-                arguments(HttpMethod.GET, "/api/usuarios", null),
-                arguments(HttpMethod.GET, "/api/usuarios/me", null),
-                arguments(HttpMethod.GET, "/api/usuarios/{user}", null),
-                arguments(HttpMethod.PUT, "/api/usuarios/{user}", USER_BODY),
-                arguments(HttpMethod.POST, "/api/usuarios/{user}/revocar-sesiones", null),
-                arguments(HttpMethod.DELETE, "/api/usuarios/{user}", null),
-                arguments(HttpMethod.GET, "/api/prestamos", null),
-                arguments(HttpMethod.GET, "/api/prestamos/mios", null),
-                arguments(HttpMethod.GET, "/api/prestamos/{loan}", null),
-                arguments(HttpMethod.POST, "/api/prestamos?libroId={book}", null),
-                arguments(HttpMethod.PUT, "/api/prestamos/{loan}/devolver", null)
+                arguments(HttpMethod.GET, "/api/books", null),
+                arguments(HttpMethod.GET, "/api/books/{book}", null),
+                arguments(HttpMethod.POST, "/api/books", BOOK_BODY),
+                arguments(HttpMethod.PUT, "/api/books/{book}", BOOK_BODY),
+                arguments(HttpMethod.DELETE, "/api/books/{book}", null),
+                arguments(HttpMethod.GET, "/api/users", null),
+                arguments(HttpMethod.GET, "/api/users/me", null),
+                arguments(HttpMethod.GET, "/api/users/{user}", null),
+                arguments(HttpMethod.PUT, "/api/users/{user}", USER_BODY),
+                arguments(HttpMethod.POST, "/api/users/{user}/revoke-sessions", null),
+                arguments(HttpMethod.DELETE, "/api/users/{user}", null),
+                arguments(HttpMethod.GET, "/api/loans", null),
+                arguments(HttpMethod.GET, "/api/loans/mine", null),
+                arguments(HttpMethod.GET, "/api/loans/{loan}", null),
+                arguments(HttpMethod.POST, "/api/loans?bookId={book}", null),
+                arguments(HttpMethod.PUT, "/api/loans/{loan}/return", null)
         );
     }
 
     /** Solo ADMIN: un USER recibe 403. */
     static Stream<Arguments> adminOnly() {
         return Stream.of(
-                arguments(HttpMethod.POST, "/api/libros", BOOK_BODY),
-                arguments(HttpMethod.PUT, "/api/libros/{book}", BOOK_BODY),
-                arguments(HttpMethod.DELETE, "/api/libros/{book}", null),
-                arguments(HttpMethod.GET, "/api/usuarios", null),
-                arguments(HttpMethod.DELETE, "/api/usuarios/{user}", null),
-                arguments(HttpMethod.GET, "/api/prestamos", null)
+                arguments(HttpMethod.POST, "/api/books", BOOK_BODY),
+                arguments(HttpMethod.PUT, "/api/books/{book}", BOOK_BODY),
+                arguments(HttpMethod.DELETE, "/api/books/{book}", null),
+                arguments(HttpMethod.GET, "/api/users", null),
+                arguments(HttpMethod.DELETE, "/api/users/{user}", null),
+                arguments(HttpMethod.GET, "/api/loans", null)
         );
     }
 
     /** ADMIN o dueño: otro usuario (Bob) recibe 403 sobre recursos de Alice. */
     static Stream<Arguments> ownerOrAdmin() {
         return Stream.of(
-                arguments(HttpMethod.GET, "/api/usuarios/{user}", null),
-                arguments(HttpMethod.PUT, "/api/usuarios/{user}", USER_BODY),
-                arguments(HttpMethod.POST, "/api/usuarios/{user}/revocar-sesiones", null),
-                arguments(HttpMethod.GET, "/api/prestamos/{loan}", null),
-                arguments(HttpMethod.PUT, "/api/prestamos/{loan}/devolver", null)
+                arguments(HttpMethod.GET, "/api/users/{user}", null),
+                arguments(HttpMethod.PUT, "/api/users/{user}", USER_BODY),
+                arguments(HttpMethod.POST, "/api/users/{user}/revoke-sessions", null),
+                arguments(HttpMethod.GET, "/api/loans/{loan}", null),
+                arguments(HttpMethod.PUT, "/api/loans/{loan}/return", null)
         );
     }
 
@@ -138,11 +138,11 @@ class EndpointAuthorizationIntegrationTest extends BaseIntegrationTest {
 
     static Stream<Arguments> ownerReads() {
         return Stream.of(
-                arguments(HttpMethod.GET, "/api/usuarios/me"),
-                arguments(HttpMethod.GET, "/api/usuarios/{user}"),
-                arguments(HttpMethod.GET, "/api/prestamos/{loan}"),
-                arguments(HttpMethod.GET, "/api/prestamos/mios"),
-                arguments(HttpMethod.GET, "/api/libros")
+                arguments(HttpMethod.GET, "/api/users/me"),
+                arguments(HttpMethod.GET, "/api/users/{user}"),
+                arguments(HttpMethod.GET, "/api/loans/{loan}"),
+                arguments(HttpMethod.GET, "/api/loans/mine"),
+                arguments(HttpMethod.GET, "/api/books")
         );
     }
 
@@ -156,10 +156,10 @@ class EndpointAuthorizationIntegrationTest extends BaseIntegrationTest {
 
     static Stream<Arguments> adminReads() {
         return Stream.of(
-                arguments(HttpMethod.GET, "/api/usuarios"),
-                arguments(HttpMethod.GET, "/api/usuarios/{user}"),
-                arguments(HttpMethod.GET, "/api/prestamos"),
-                arguments(HttpMethod.GET, "/api/prestamos/{loan}")
+                arguments(HttpMethod.GET, "/api/users"),
+                arguments(HttpMethod.GET, "/api/users/{user}"),
+                arguments(HttpMethod.GET, "/api/loans"),
+                arguments(HttpMethod.GET, "/api/loans/{loan}")
         );
     }
 }

@@ -19,12 +19,12 @@ const RUTAS = {
   register: "/api/auth/register",
   refresh: "/api/auth/refresh",
   logout: "/api/auth/logout",
-  miUsuario: "/api/usuarios/me",
-  misPrestamos: "/api/prestamos/mios",
-  prestamos: "/api/prestamos",
-  libros: "/api/libros",
-  devolver: (id) => `/api/prestamos/${encodeURIComponent(id)}/devolver`,
-  libro: (id) => `/api/libros/${encodeURIComponent(id)}`
+  miUsuario: "/api/users/me",
+  misPrestamos: "/api/loans/mine",
+  prestamos: "/api/loans",
+  libros: "/api/books",
+  devolver: (id) => `/api/loans/${encodeURIComponent(id)}/return`,
+  libro: (id) => `/api/books/${encodeURIComponent(id)}`
 };
 
 export class ApiError extends Error {
@@ -161,14 +161,14 @@ export const api = {
     return datos;
   },
   register: (nombre, email, password) =>
-    solicitar(RUTAS.register, { metodo: "POST", cuerpo: { nombre, email, password } }),
+    solicitar(RUTAS.register, { metodo: "POST", cuerpo: { name: nombre, email, password } }),
   logout: () => solicitar(RUTAS.logout, { metodo: "POST", cuerpo: () => ({ refreshToken: leerToken(CLAVE_REFRESH) }) }),
 
   miUsuario: () => solicitar(RUTAS.miUsuario),
   misPrestamos: () => solicitar(RUTAS.misPrestamos),
   libros: () => solicitar(RUTAS.libros),
   solicitar: (libroId) =>
-    solicitar(`${RUTAS.prestamos}?libroId=${encodeURIComponent(libroId)}`, { metodo: "POST" }),
+    solicitar(`${RUTAS.prestamos}?bookId=${encodeURIComponent(libroId)}`, { metodo: "POST" }),
   devolver: (prestamoId) => solicitar(RUTAS.devolver(prestamoId), { metodo: "PUT" }),
   crearLibro: ({ titulo, autor, isbn, genero }) =>
     solicitar(RUTAS.libros, { metodo: "POST", cuerpo: { title: titulo, author: autor, isbn, genre: genero } }),

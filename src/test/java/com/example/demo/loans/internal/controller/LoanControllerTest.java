@@ -93,11 +93,11 @@ class LoanControllerTest {
 
     @Test
     void everyEndpointIs401WithoutIdentity() throws Exception {
-        mockMvc.perform(get("/api/prestamos")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/prestamos/mios")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/prestamos/1")).andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/prestamos").param("libroId", "3")).andExpect(status().isUnauthorized());
-        mockMvc.perform(put("/api/prestamos/1/devolver")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/loans")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/loans/mine")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/loans/1")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/loans").param("bookId", "3")).andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/loans/1/return")).andExpect(status().isUnauthorized());
 
         verifyNoInteractions(getAllLoansUseCase, getOwnLoansUseCase, getLoanUseCase, createLoanUseCase, returnLoanUseCase);
     }
@@ -107,8 +107,8 @@ class LoanControllerTest {
         when(getAllLoansUseCase.execute(REQUESTER)).thenThrow(new ForbiddenException());
         when(getLoanUseCase.execute(REQUESTER, 1L)).thenThrow(new ForbiddenException());
 
-        mockMvc.perform(get("/api/prestamos").with(ana())).andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/prestamos/1").with(ana())).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/loans").with(ana())).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/loans/1").with(ana())).andExpect(status().isForbidden());
     }
 
     // ---- éxito y contrato
@@ -122,7 +122,7 @@ class LoanControllerTest {
     void getAllReturnsLoansWithHistoricalFieldNames() throws Exception {
         when(getAllLoansUseCase.execute(REQUESTER)).thenReturn(List.of(loan(1L)));
 
-        mockMvc.perform(get("/api/prestamos").with(ana()))
+        mockMvc.perform(get("/api/loans").with(ana()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].loanDate").value("2026-01-02"))
@@ -138,7 +138,7 @@ class LoanControllerTest {
     void getOwnReturnsTheRequestersLoans() throws Exception {
         when(getOwnLoansUseCase.execute(REQUESTER)).thenReturn(List.of(loan(1L)));
 
-        mockMvc.perform(get("/api/prestamos/mios").with(ana()))
+        mockMvc.perform(get("/api/loans/mine").with(ana()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1));
     }
@@ -147,7 +147,7 @@ class LoanControllerTest {
     void getByIdReturnsTheLoan() throws Exception {
         when(getLoanUseCase.execute(REQUESTER, 1L)).thenReturn(loan(1L));
 
-        mockMvc.perform(get("/api/prestamos/1").with(ana()))
+        mockMvc.perform(get("/api/loans/1").with(ana()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1));
     }
@@ -156,7 +156,7 @@ class LoanControllerTest {
     void getByIdUnknownIs404WithErrorProperty() throws Exception {
         when(getLoanUseCase.execute(REQUESTER, 9L)).thenThrow(new LoanNotFoundException());
 
-        mockMvc.perform(get("/api/prestamos/9").with(ana()))
+        mockMvc.perform(get("/api/loans/9").with(ana()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Préstamo no encontrado"))
                 .andExpect(jsonPath("$.detail").value("Préstamo no encontrado"));
@@ -166,9 +166,9 @@ class LoanControllerTest {
     void createPassesTheBookIdAndReturns201WithLocation() throws Exception {
         when(createLoanUseCase.execute(REQUESTER, 3L)).thenReturn(loan(1L));
 
-        mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
+        mockMvc.perform(post("/api/loans").with(ana()).param("bookId", "3"))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/api/prestamos/1"))
+                .andExpect(header().string("Location", "/api/loans/1"))
                 .andExpect(jsonPath("$.book.id").value(3));
     }
 
@@ -176,7 +176,7 @@ class LoanControllerTest {
     void createWithUnknownBookIs404() throws Exception {
         when(createLoanUseCase.execute(REQUESTER, 99L)).thenThrow(new LoanBookNotFoundException());
 
-        mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "99"))
+        mockMvc.perform(post("/api/loans").with(ana()).param("bookId", "99"))
                 .andExpect(status().isNotFound());
     }
 
@@ -184,14 +184,14 @@ class LoanControllerTest {
     void createWithUnavailableBookIs409() throws Exception {
         when(createLoanUseCase.execute(REQUESTER, 3L)).thenThrow(new LoanBookNotAvailableException());
 
-        mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
+        mockMvc.perform(post("/api/loans").with(ana()).param("bookId", "3"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").exists());
     }
 
     @Test
     void createWithNonPositiveBookIdIs400() throws Exception {
-        mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "0"))
+        mockMvc.perform(post("/api/loans").with(ana()).param("bookId", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors").isArray());
 
@@ -200,7 +200,7 @@ class LoanControllerTest {
 
     @Test
     void createWithoutBookIdIs400() throws Exception {
-        mockMvc.perform(post("/api/prestamos").with(ana()))
+        mockMvc.perform(post("/api/loans").with(ana()))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(getAllLoansUseCase, getOwnLoansUseCase, getLoanUseCase, createLoanUseCase, returnLoanUseCase);
@@ -210,7 +210,7 @@ class LoanControllerTest {
     void returnLoanReturns200() throws Exception {
         when(returnLoanUseCase.execute(REQUESTER, 1L)).thenReturn(loan(1L));
 
-        mockMvc.perform(put("/api/prestamos/1/devolver").with(ana()))
+        mockMvc.perform(put("/api/loans/1/return").with(ana()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1));
     }
@@ -219,7 +219,7 @@ class LoanControllerTest {
     void returnLoanAlreadyReturnedIs409() throws Exception {
         when(returnLoanUseCase.execute(REQUESTER, 1L)).thenThrow(new LoanAlreadyReturnedException());
 
-        mockMvc.perform(put("/api/prestamos/1/devolver").with(ana()))
+        mockMvc.perform(put("/api/loans/1/return").with(ana()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("El préstamo ya fue devuelto"));
     }
@@ -228,7 +228,7 @@ class LoanControllerTest {
     void returnLoanConcurrentModificationIs409() throws Exception {
         when(returnLoanUseCase.execute(REQUESTER, 1L)).thenThrow(new LoanConcurrentModificationException(null));
 
-        mockMvc.perform(put("/api/prestamos/1/devolver").with(ana()))
+        mockMvc.perform(put("/api/loans/1/return").with(ana()))
                 .andExpect(status().isConflict());
     }
 
@@ -236,7 +236,7 @@ class LoanControllerTest {
     void createInvalidLoanIs422() throws Exception {
         when(createLoanUseCase.execute(REQUESTER, 3L)).thenThrow(new InvalidLoanException("El libro es obligatorio"));
 
-        mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
+        mockMvc.perform(post("/api/loans").with(ana()).param("bookId", "3"))
                 .andExpect(status().isUnprocessableEntity());
     }
 }

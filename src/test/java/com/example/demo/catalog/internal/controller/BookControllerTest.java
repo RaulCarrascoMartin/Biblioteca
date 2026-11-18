@@ -95,13 +95,13 @@ class BookControllerTest {
 
     @Test
     void everyEndpointIs401WithoutIdentity() throws Exception {
-        mockMvc.perform(get("/api/libros")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/libros/5")).andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/libros").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(get("/api/books")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/books/5")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/books").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(put("/api/libros/5").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(put("/api/books/5").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(delete("/api/libros/5")).andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/books/5")).andExpect(status().isUnauthorized());
 
         verifyNoInteractions(getAllBooksUseCase, getBookUseCase, createBookUseCase, updateBookUseCase, deleteBookUseCase);
     }
@@ -112,11 +112,11 @@ class BookControllerTest {
         when(updateBookUseCase.execute(eq(BOB), eq(5L), any(SaveBookDto.class))).thenThrow(new ForbiddenException());
         doThrow(new ForbiddenException()).when(deleteBookUseCase).execute(BOB, 5L);
 
-        mockMvc.perform(post("/api/libros").with(bob()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(post("/api/books").with(bob()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(put("/api/libros/5").with(bob()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(put("/api/books/5").with(bob()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(delete("/api/libros/5").with(bob())).andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/books/5").with(bob())).andExpect(status().isForbidden());
     }
 
     // ---- éxito y contrato
@@ -125,7 +125,7 @@ class BookControllerTest {
     void getAll_returnsJsonArrayWithSpanishFieldNames() throws Exception {
         when(getAllBooksUseCase.execute(BOB)).thenReturn(List.of(DTO));
 
-        mockMvc.perform(get("/api/libros").with(bob()))
+        mockMvc.perform(get("/api/books").with(bob()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(5))
                 .andExpect(jsonPath("$[0].title").value("Dune"))
@@ -138,7 +138,7 @@ class BookControllerTest {
     void getById_existing_200() throws Exception {
         when(getBookUseCase.execute(BOB, 5L)).thenReturn(DTO);
 
-        mockMvc.perform(get("/api/libros/5").with(bob()))
+        mockMvc.perform(get("/api/books/5").with(bob()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isbn").value("9780441013593"));
     }
@@ -147,7 +147,7 @@ class BookControllerTest {
     void getById_missing_404ProblemDetail() throws Exception {
         when(getBookUseCase.execute(BOB, 9999L)).thenThrow(new BookNotFoundException());
 
-        mockMvc.perform(get("/api/libros/9999").with(bob()))
+        mockMvc.perform(get("/api/books/9999").with(bob()))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(404))
@@ -158,9 +158,9 @@ class BookControllerTest {
     void create_valid_returns201WithLocationAndBook() throws Exception {
         when(createBookUseCase.execute(eq(ADMIN), any(SaveBookDto.class))).thenReturn(DTO);
 
-        mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(post("/api/books").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/api/libros/5"))
+                .andExpect(header().string("Location", "/api/books/5"))
                 .andExpect(jsonPath("$.available").value(true));
 
         verify(createBookUseCase).execute(ADMIN, new SaveBookDto("Dune", "Frank Herbert", "9780441013593", Genre.CIENCIA_FICCION));
@@ -168,7 +168,7 @@ class BookControllerTest {
 
     @Test
     void create_emptyBody_400ProblemDetailWithFieldAndReason() throws Exception {
-        mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/api/books").with(admin()).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
@@ -179,7 +179,7 @@ class BookControllerTest {
 
     @Test
     void create_shortIsbn_400() throws Exception {
-        mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/books").with(admin()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"T\",\"author\":\"A\",\"isbn\":\"123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(containsString("entre 10 y 20")));
@@ -189,7 +189,7 @@ class BookControllerTest {
     void create_duplicateIsbn_409ProblemDetail() throws Exception {
         when(createBookUseCase.execute(eq(ADMIN), any(SaveBookDto.class))).thenThrow(new DuplicateIsbnException());
 
-        mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(post("/api/books").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("El ISBN ya existe en el catálogo"));
@@ -200,7 +200,7 @@ class BookControllerTest {
         when(createBookUseCase.execute(eq(ADMIN), any(SaveBookDto.class)))
                 .thenThrow(new InvalidBookException("El género es obligatorio"));
 
-        mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(post("/api/books").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.detail").value("El género es obligatorio"));
     }
@@ -209,7 +209,7 @@ class BookControllerTest {
     void update_missing_404() throws Exception {
         when(updateBookUseCase.execute(eq(ADMIN), eq(9999L), any(SaveBookDto.class))).thenThrow(new BookNotFoundException());
 
-        mockMvc.perform(put("/api/libros/9999").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(put("/api/books/9999").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isNotFound());
     }
 
@@ -217,7 +217,7 @@ class BookControllerTest {
     void update_isbnOfAnotherBook_409() throws Exception {
         when(updateBookUseCase.execute(eq(ADMIN), eq(5L), any(SaveBookDto.class))).thenThrow(new DuplicateIsbnException());
 
-        mockMvc.perform(put("/api/libros/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(put("/api/books/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isConflict());
     }
 
@@ -225,14 +225,14 @@ class BookControllerTest {
     void update_valid_200() throws Exception {
         when(updateBookUseCase.execute(eq(ADMIN), eq(5L), any(SaveBookDto.class))).thenReturn(DTO);
 
-        mockMvc.perform(put("/api/libros/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+        mockMvc.perform(put("/api/books/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Dune"));
     }
 
     @Test
     void delete_existing_204() throws Exception {
-        mockMvc.perform(delete("/api/libros/5").with(admin())).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/books/5").with(admin())).andExpect(status().isNoContent());
 
         verify(deleteBookUseCase).execute(ADMIN, 5L);
     }
@@ -241,14 +241,14 @@ class BookControllerTest {
     void delete_missing_404() throws Exception {
         doThrow(new BookNotFoundException()).when(deleteBookUseCase).execute(ADMIN, 9999L);
 
-        mockMvc.perform(delete("/api/libros/9999").with(admin())).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/books/9999").with(admin())).andExpect(status().isNotFound());
     }
 
     @Test
     void delete_withLoans_409() throws Exception {
         doThrow(new BookWithLoansException()).when(deleteBookUseCase).execute(ADMIN, 5L);
 
-        mockMvc.perform(delete("/api/libros/5").with(admin()))
+        mockMvc.perform(delete("/api/books/5").with(admin()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("No se puede retirar un libro con préstamos registrados"));
     }

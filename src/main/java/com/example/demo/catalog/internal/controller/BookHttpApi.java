@@ -21,12 +21,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.util.List;
 
-/** Contrato HTTP del catálogo (ruta base {@code /api/libros}). Solo ADMIN crea, edita y borra. */
+/** Contrato HTTP del catálogo (ruta base {@code /api/books}). Solo ADMIN crea, edita y borra. */
 @Tag(name = "Libros", description = "Catálogo de libros")
 @RequestMapping(BookHttpApi.BASE_PATH)
 public interface BookHttpApi {
 
-    String BASE_PATH = "/api/libros";
+    String BASE_PATH = "/api/books";
 
     @Operation(summary = "Lista el catálogo", description = "Cualquier usuario autenticado.")
     @ApiResponses({

@@ -76,7 +76,7 @@ class AuthControllerTest {
     }
 
     private static String registerJson(String name, String email, String password) {
-        return "{\"nombre\":\"%s\",\"email\":\"%s\",\"password\":\"%s\"}".formatted(name, email, password);
+        return "{\"name\":\"%s\",\"email\":\"%s\",\"password\":\"%s\"}".formatted(name, email, password);
     }
 
     // ---- rutas públicas
@@ -145,9 +145,9 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("Ana", "ana@test.es", "Clave1234")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombre").value("Ana"))
+                .andExpect(jsonPath("$.name").value("Ana"))
                 .andExpect(jsonPath("$.email").value("ana@test.es"))
-                .andExpect(jsonPath("$.rol").value("USER"));
+                .andExpect(jsonPath("$.role").value("USER"));
     }
 
     @Test

@@ -60,21 +60,21 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void apiWithoutTokenIs401Json() throws Exception {
-        mockMvc.perform(get("/api/libros"))
+        mockMvc.perform(get("/api/books"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("No autenticado"));
     }
 
     @Test
     void protectedEndpointWithoutTokenIs401Json() throws Exception {
-        mockMvc.perform(get("/api/usuarios/me"))
+        mockMvc.perform(get("/api/users/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("No autenticado"));
     }
 
     @Test
     void invalidTokenIs401() throws Exception {
-        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer basura"))
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer basura"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -86,10 +86,10 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     @Test
     void registerIsPublicAndStoresABcryptHash() throws Exception {
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("nombre", "Ana", "email", "ana@test.es", "password", "Clave1234"))))
+                        .content(json(Map.of("name", "Ana", "email", "ana@test.es", "password", "Clave1234"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("ana@test.es"))
-                .andExpect(jsonPath("$.rol").value("USER"));
+                .andExpect(jsonPath("$.role").value("USER"));
 
         String stored = jdbc.queryForObject("SELECT password FROM usuarios WHERE email = ?", String.class, "ana@test.es");
         assertTrue(stored.startsWith("$2"));
@@ -98,7 +98,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     @Test
     void registerNormalizesEmailToLowerCase() throws Exception {
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("nombre", "Ana", "email", "Ana@Test.es", "password", "Clave1234"))))
+                        .content(json(Map.of("name", "Ana", "email", "Ana@Test.es", "password", "Clave1234"))))
                 .andExpect(status().isOk());
 
         assertTrue(usersModule.getByEmail("ana@test.es").isPresent());
@@ -107,7 +107,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     @Test
     void registerIgnoresRoleFromBody() throws Exception {
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("nombre", "X", "email", "x@test.es", "password", "Pass12345", "rol", "ADMIN"))))
+                        .content(json(Map.of("name", "X", "email", "x@test.es", "password", "Pass12345", "role", "ADMIN"))))
                 .andExpect(status().isOk());
 
         assertEquals("USER", usersModule.getByEmail("x@test.es").orElseThrow().role());
@@ -134,7 +134,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         JsonNode pair = login("lex@test.es");
 
         assertTrue(pair.get("refreshToken").asText().length() >= 32);
-        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + pair.get("accessToken").asText()))
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + pair.get("accessToken").asText()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("lex@test.es"));
     }
@@ -154,7 +154,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     void theOldJwtCookieNoLongerAuthenticates() throws Exception {
         createUser("Ana", "cookie@test.es", "USER");
 
-        mockMvc.perform(get("/api/usuarios/me").cookie(new Cookie("jwt_token", tokenFor("cookie@test.es"))))
+        mockMvc.perform(get("/api/users/me").cookie(new Cookie("jwt_token", tokenFor("cookie@test.es"))))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -177,7 +177,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         JsonNode second = objectMapper.readTree(result.getResponse().getContentAsString());
 
         assertNotEquals(first.get("refreshToken").asText(), second.get("refreshToken").asText());
-        mockMvc.perform(get("/api/usuarios/me").header("Authorization", "Bearer " + second.get("accessToken").asText()))
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + second.get("accessToken").asText()))
                 .andExpect(status().isOk());
     }
 
@@ -242,11 +242,11 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     void registerRateLimitReturns429OnTheFourthAttempt() throws Exception {
         for (int i = 0; i < 3; i++) {
             mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-                            .content(json(Map.of("nombre", "U" + i, "email", "r" + i + "@test.es", "password", "Pass12345"))))
+                            .content(json(Map.of("name", "U" + i, "email", "r" + i + "@test.es", "password", "Pass12345"))))
                     .andExpect(status().isOk());
         }
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("nombre", "X", "email", "rX@test.es", "password", "Pass12345"))))
+                        .content(json(Map.of("name", "X", "email", "rX@test.es", "password", "Pass12345"))))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"));
     }
