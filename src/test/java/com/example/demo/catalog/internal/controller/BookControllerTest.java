@@ -60,7 +60,7 @@ class BookControllerTest {
     private static final BookDto DTO = new BookDto(5L, "Dune", "Frank Herbert", "9780441013593", true,
             Genre.CIENCIA_FICCION);
     private static final String VALID_BODY =
-            "{\"titulo\":\"Dune\",\"autor\":\"Frank Herbert\",\"isbn\":\"9780441013593\",\"genero\":\"CIENCIA_FICCION\"}";
+            "{\"title\":\"Dune\",\"author\":\"Frank Herbert\",\"isbn\":\"9780441013593\",\"genre\":\"CIENCIA_FICCION\"}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -128,10 +128,10 @@ class BookControllerTest {
         mockMvc.perform(get("/api/libros").with(bob()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(5))
-                .andExpect(jsonPath("$[0].titulo").value("Dune"))
-                .andExpect(jsonPath("$[0].autor").value("Frank Herbert"))
-                .andExpect(jsonPath("$[0].disponible").value(true))
-                .andExpect(jsonPath("$[0].genero").value("CIENCIA_FICCION"));
+                .andExpect(jsonPath("$[0].title").value("Dune"))
+                .andExpect(jsonPath("$[0].author").value("Frank Herbert"))
+                .andExpect(jsonPath("$[0].available").value(true))
+                .andExpect(jsonPath("$[0].genre").value("CIENCIA_FICCION"));
     }
 
     @Test
@@ -161,7 +161,7 @@ class BookControllerTest {
         mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/libros/5"))
-                .andExpect(jsonPath("$.disponible").value(true));
+                .andExpect(jsonPath("$.available").value(true));
 
         verify(createBookUseCase).execute(ADMIN, new SaveBookDto("Dune", "Frank Herbert", "9780441013593", Genre.CIENCIA_FICCION));
     }
@@ -180,7 +180,7 @@ class BookControllerTest {
     @Test
     void create_shortIsbn_400() throws Exception {
         mockMvc.perform(post("/api/libros").with(admin()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"titulo\":\"T\",\"autor\":\"A\",\"isbn\":\"123\"}"))
+                        .content("{\"title\":\"T\",\"author\":\"A\",\"isbn\":\"123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(containsString("entre 10 y 20")));
     }
@@ -227,7 +227,7 @@ class BookControllerTest {
 
         mockMvc.perform(put("/api/libros/5").with(admin()).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.titulo").value("Dune"));
+                .andExpect(jsonPath("$.title").value("Dune"));
     }
 
     @Test

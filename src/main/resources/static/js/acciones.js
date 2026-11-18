@@ -78,10 +78,10 @@ const operacion = async (btn, peticion, mensajeOk) => {
 };
 
 export const solicitar = (btn, id) =>
-  operacion(btn, () => api.solicitar(id), (p) => `El libro «${p.libro.titulo}» pasa a su estantería.`);
+  operacion(btn, () => api.solicitar(id), (p) => `El libro «${p.book.title}» pasa a su estantería.`);
 
 export const devolver = (btn, id) =>
-  operacion(btn, () => api.devolver(id), (p) => `Se devuelve «${p.libro.titulo}» a la sala.`);
+  operacion(btn, () => api.devolver(id), (p) => `Se devuelve «${p.book.title}» a la sala.`);
 
 export const retirar = (btn, id) =>
   operacion(btn, () => api.eliminarLibro(id), () => "Volumen retirado del catálogo.");
@@ -91,7 +91,7 @@ export const crearLibro = async (form, { titulo, autor, isbn, genero }, btn) => 
   btn.disabled = true;
   try {
     const nuevo = await api.crearLibro({ titulo, autor, isbn, genero });
-    toast(`«${nuevo.titulo}» añadido al catálogo.`);
+    toast(`«${nuevo.title}» añadido al catálogo.`);
     form.reset();
     btn.disabled = false;
     await cargarBiblioteca();

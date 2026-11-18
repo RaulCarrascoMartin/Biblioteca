@@ -171,6 +171,6 @@ export const api = {
     solicitar(`${RUTAS.prestamos}?libroId=${encodeURIComponent(libroId)}`, { metodo: "POST" }),
   devolver: (prestamoId) => solicitar(RUTAS.devolver(prestamoId), { metodo: "PUT" }),
   crearLibro: ({ titulo, autor, isbn, genero }) =>
-    solicitar(RUTAS.libros, { metodo: "POST", cuerpo: { titulo, autor, isbn, genero } }),
+    solicitar(RUTAS.libros, { metodo: "POST", cuerpo: { title: titulo, author: autor, isbn, genre: genero } }),
   eliminarLibro: (libroId) => solicitar(RUTAS.libro(libroId), { metodo: "DELETE" })
 };

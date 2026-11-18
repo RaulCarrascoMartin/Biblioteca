@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class EndpointAuthorizationIntegrationTest extends BaseIntegrationTest {
 
-    private static final String BOOK_BODY = "{\"titulo\":\"T\",\"autor\":\"A\",\"isbn\":\"9780000009999\"}";
+    private static final String BOOK_BODY = "{\"title\":\"T\",\"author\":\"A\",\"isbn\":\"9780000009999\"}";
     private static final String USER_BODY = "{\"nombre\":\"Nuevo\",\"email\":\"nuevo@test.es\"}";
 
     private long aliceId;

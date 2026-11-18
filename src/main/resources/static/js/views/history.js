@@ -5,17 +5,17 @@ import { devueltos } from "../state.js";
 const pad4 = (n) => String(n).padStart(4, "0");
 
 const linea = (p) => {
-  const l = p.libro;
+  const l = p.book;
   const artNum = l.isbn ? l.isbn.slice(-4) : l.id;
   return (
     '<li class="ticket__line">' +
       '<div class="ticket__info">' +
-        `<b>${esc(l.titulo)}</b><span>${esc(l.autor || "")}</span>` +
+        `<b>${esc(l.title)}</b><span>${esc(l.author || "")}</span>` +
       "</div>" +
       '<div class="ticket__dates">' +
         `<span class="ticket__art">ART.&nbsp;${esc(artNum)}</span>` +
-        `<span>P.&nbsp;${fecha(p.fechaPrestamo)}</span>` +
-        `<span>D.&nbsp;${fecha(p.fechaDevolucion)}</span>` +
+        `<span>P.&nbsp;${fecha(p.loanDate)}</span>` +
+        `<span>D.&nbsp;${fecha(p.returnDate)}</span>` +
       "</div>" +
     "</li>"
   );

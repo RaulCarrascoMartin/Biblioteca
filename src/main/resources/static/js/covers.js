@@ -31,9 +31,9 @@ const hash = (s) => {
 export const genero = (g) => (g && GENEROS[g]) || null;
 
 export const tapaPara = (libro) => {
-  const def = genero(libro && libro.genero);
+  const def = genero(libro && libro.genre);
   if (def) return TAPAS[def.tapa];
-  let semilla = (libro.isbn || "") + "|" + (libro.titulo || "");
+  let semilla = (libro.isbn || "") + "|" + (libro.title || "");
   if (!semilla) semilla = String(libro.id || 0);
   return TAPAS[hash(semilla) % TAPAS.length];
 };
@@ -43,10 +43,10 @@ export const cubierta = (libro, numero) => {
   const tapa = tapaPara(libro);
   const numeroHtml = numero ? `<span class="cover__num">${esc(numero)}</span>` : "";
   return (
-    `<div class="cover" style="--tapa:${tapa[0]}" title="${esc(libro.titulo)}">` +
+    `<div class="cover" style="--tapa:${tapa[0]}" title="${esc(libro.title)}">` +
       '<span class="cover__line"></span>' +
       '<span class="cover__spine">' +
-        `<span class="cover__title">${esc(libro.titulo)}</span>${numeroHtml}` +
+        `<span class="cover__title">${esc(libro.title)}</span>${numeroHtml}` +
       "</span>" +
     "</div>"
   );
@@ -54,7 +54,7 @@ export const cubierta = (libro, numero) => {
 
 /* Etiqueta de genero; cadena vacia si el libro no tiene genero conocido. */
 export const etiquetaGenero = (libro) => {
-  const g = genero(libro && libro.genero);
+  const g = genero(libro && libro.genre);
   if (!g) return "";
   return `<span class="genre-tag" style="--gen:${tapaPara(libro)[0]}"><i class="genre-tag__dot"></i>${g.label}</span>`;
 };

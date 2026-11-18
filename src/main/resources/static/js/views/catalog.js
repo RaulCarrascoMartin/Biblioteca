@@ -5,8 +5,8 @@ import { disponibles } from "../state.js";
 const item = (l) =>
   '<div class="catalog-item">' +
     cubierta(l, "SALA") +
-    `<div class="catalog-item__caption"><b class="catalog-item__title">${esc(l.titulo)}</b>` +
-      `<span class="catalog-item__author">${esc(l.autor || "")}</span>` +
+    `<div class="catalog-item__caption"><b class="catalog-item__title">${esc(l.title)}</b>` +
+      `<span class="catalog-item__author">${esc(l.author || "")}</span>` +
       `<span class="catalog-item__genre">${etiquetaGenero(l)}</span></div>` +
     `<button type="button" class="catalog-item__action" data-solicitar="${esc(l.id)}">Solicitar</button>` +
   "</div>";

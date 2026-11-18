@@ -125,13 +125,13 @@ class LoanControllerTest {
         mockMvc.perform(get("/api/prestamos").with(ana()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].fechaPrestamo").value("2026-01-02"))
-                .andExpect(jsonPath("$[0].fechaDevolucion").isEmpty())
-                .andExpect(jsonPath("$[0].libro.titulo").value("Libro A"))
-                .andExpect(jsonPath("$[0].libro.disponible").value(false))
-                .andExpect(jsonPath("$[0].usuarioId").value(7))
-                .andExpect(jsonPath("$[0].usuarioNombre").value("Ana"))
-                .andExpect(jsonPath("$[0].usuarioEmail").value("ana@x.es"));
+                .andExpect(jsonPath("$[0].loanDate").value("2026-01-02"))
+                .andExpect(jsonPath("$[0].returnDate").isEmpty())
+                .andExpect(jsonPath("$[0].book.title").value("Libro A"))
+                .andExpect(jsonPath("$[0].book.available").value(false))
+                .andExpect(jsonPath("$[0].userId").value(7))
+                .andExpect(jsonPath("$[0].userName").value("Ana"))
+                .andExpect(jsonPath("$[0].userEmail").value("ana@x.es"));
     }
 
     @Test
@@ -169,7 +169,7 @@ class LoanControllerTest {
         mockMvc.perform(post("/api/prestamos").with(ana()).param("libroId", "3"))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/prestamos/1"))
-                .andExpect(jsonPath("$.libro.id").value(3));
+                .andExpect(jsonPath("$.book.id").value(3));
     }
 
     @Test

@@ -11,18 +11,18 @@ const chunk = (arr, n) => {
 };
 
 const libroEnAnaquel = (prestamo, indice) => {
-  const libro = prestamo.libro;
+  const libro = prestamo.book;
   const ribbon =
-    '<span class="book__ribbon"><span class="book__ribbon-text">P ' + fecha(prestamo.fechaPrestamo) +
+    '<span class="book__ribbon"><span class="book__ribbon-text">P ' + fecha(prestamo.loanDate) +
     "<br>D &mdash;</span></span>";
   return (
     `<div class="book${indice % 2 === 0 ? " book--ladrillo" : ""}">` +
       cubierta(libro, "REG. " + (libro.isbn ? libro.isbn.slice(-4) : libro.id)) + ribbon +
       '<div class="book__plate">' +
-        `<b class="book__plate-title">${esc(libro.titulo)}</b>` +
-        esc(libro.autor || "") + "<br>" +
+        `<b class="book__plate-title">${esc(libro.title)}</b>` +
+        esc(libro.author || "") + "<br>" +
         etiquetaGenero(libro) +
-        `<i class="book__plate-dates">Prestado ${fecha(prestamo.fechaPrestamo)}</i>` +
+        `<i class="book__plate-dates">Prestado ${fecha(prestamo.loanDate)}</i>` +
       "</div>" +
       `<button type="button" class="book__action" data-devolver="${esc(prestamo.id)}">Devolver</button>` +
     "</div>"

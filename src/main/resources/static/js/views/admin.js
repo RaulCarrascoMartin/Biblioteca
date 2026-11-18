@@ -3,16 +3,16 @@ import { etiquetaGenero } from "../covers.js";
 import { esAdmin } from "../state.js";
 
 const fila = (l) => {
-  const estado = l.disponible
+  const estado = l.available
     ? '<span class="status status--ok">EN SALA</span>'
     : '<span class="status status--lent">PRESTADO</span>';
-  const retirar = l.disponible
+  const retirar = l.available
     ? `<button type="button" class="btn btn--danger" data-retirar="${esc(l.id)}">Retirar</button>`
     : "";
   const genero = etiquetaGenero(l) || '<span class="genre-tag genre-tag--empty">&mdash;</span>';
   return (
-    `<tr><td><b>${esc(l.titulo)}</b></td>` +
-    `<td>${esc(l.autor || "")}</td>` +
+    `<tr><td><b>${esc(l.title)}</b></td>` +
+    `<td>${esc(l.author || "")}</td>` +
     `<td>${genero}</td>` +
     `<td><i>${esc(l.isbn || "")}</i></td>` +
     `<td>${estado}</td>` +
